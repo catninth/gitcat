@@ -715,25 +715,8 @@
 .gc-diff-table--inline .gc-diff-table__line-column { @apply w-12; }
 .gc-diff-table--inline .gc-diff-table__content-column { @apply w-auto; }
 
-.gc-diff-table__head {
-  @apply sticky top-[29px] z-[2] bg-panel text-left text-[9px] text-muted;
-}
-
-.gc-diff-table--headless .gc-diff-table__head {
-  @apply top-0;
-}
-
 .gc-diff-scroller--mapped::-webkit-scrollbar:vertical {
   width: 0;
-}
-
-.gc-diff-table__head th {
-  @apply border-b border-border px-[7px] py-1 font-semibold;
-}
-
-.gc-diff-table__line-heading {
-  @apply w-12;
-  text-align: right !important;
 }
 
 .gc-diff-line td {
@@ -846,15 +829,8 @@
   min-width: calc(var(--gc-diff-cols, 0) * 1ch + 81px);
 }
 
-.gc-diff-table--side th:nth-child(1),
-.gc-diff-table--side td:nth-child(1) {
-  @apply w-12;
-}
-
-.gc-diff-table--side th:nth-child(2),
-.gc-diff-table--side td:nth-child(2) {
-  width: calc(100% - 48px);
-}
+.gc-diff-table--side .gc-diff-table__line-column { @apply w-12; }
+.gc-diff-table--side .gc-diff-table__content-column { width: calc(100% - 48px); }
 
 @media (prefers-reduced-motion: reduce) {
   *,

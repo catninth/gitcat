@@ -29,16 +29,14 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
       label={showHeader ? `gc-split-${side}-hunk-${index}` : undefined}
     >
       {showHeader ? <HunkHeader id={`gc-split-${side}-hunk-${index}`}>{hunk.header}</HunkHeader> : null}
-      <table className={`gc-diff-table gc-diff-table--side${showHeader ? "" : " gc-diff-table--headless"}`}>
+      <table className="gc-diff-table gc-diff-table--side">
+        <colgroup>
+          <col className="gc-diff-table__line-column" />
+          <col className="gc-diff-table__content-column" />
+        </colgroup>
         <caption className="sr-only">
           {SIDE_LABEL[side]} side of the diff: lines {start}–{start + Math.max(0, count - 1)}
         </caption>
-        <thead className="gc-diff-table__head">
-          <tr>
-            <th className="gc-diff-table__line-heading" scope="col">Line</th>
-            <th className="gc-diff-table__side-heading" scope="col">{SIDE_LABEL[side]}</th>
-          </tr>
-        </thead>
         <tbody>
           {rows.map((row, rowIndex) => {
             if (row.marker) {

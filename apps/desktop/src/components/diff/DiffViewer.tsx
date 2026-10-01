@@ -149,16 +149,10 @@ export function DiffViewer({
     <section aria-label={`Diff for ${diff.new_path}`} className={rootClass}>
       <header className="flex min-h-12 flex-[0_0_auto] items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--gc-panel)_66%,var(--gc-background))] py-1.5 pl-3.25 pr-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.75">
+          <ChangeKind status={diff.status} />
           <h2 className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[12px] font-[550] leading-[1.4] text-foreground" title={diff.new_path}>
             {renamed ? `${oldPath} → ${diff.new_path}` : diff.new_path}
           </h2>
-          <ChangeKind status={diff.status} />
-          <span aria-label={`${diff.stats.additions} additions`} className="font-mono text-[10px] font-[650] text-success">
-            +{diff.stats.additions}
-          </span>
-          <span aria-label={`${diff.stats.deletions} deletions`} className="font-mono text-[10px] font-[650] text-danger">
-            −{diff.stats.deletions}
-          </span>
           {diff.old_mode !== diff.new_mode ? (
             <span className="font-mono text-[10px] text-muted">
               {diff.old_mode ?? "none"} → {diff.new_mode ?? "none"}

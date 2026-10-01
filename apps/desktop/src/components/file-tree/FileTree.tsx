@@ -1,12 +1,11 @@
-import { ArrowRight, ChevronDown, ChevronRight, Copy, FileType, Folder, Minus, Pencil, Plus, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 
 import { cx } from "../../lib";
 import type { FileViewMode } from "../../lib/types";
 import { ChangeCountSummary } from "./ChangeCounts";
-import { EntryName, RowAction, TreeEntry, TreeRow, fileStatusClass } from "./TreeRow";
+import { EntryName, RowAction, TreeEntry, TreeRow, fileStatusClass, fileStatusIcon } from "./TreeRow";
 import {
   buildTree,
   collectFolderItems,
@@ -16,17 +15,6 @@ import {
   treeIndent,
 } from "./tree";
 import type { FileTreeItem, FolderCollapse, TreeNode } from "./tree";
-
-const STATUS_ICON: Record<string, LucideIcon> = {
-  added: Plus,
-  untracked: Plus,
-  modified: Pencil,
-  deleted: Minus,
-  renamed: ArrowRight,
-  copied: Copy,
-  type_changed: FileType,
-  unmerged: TriangleAlert,
-};
 
 function collapseTargetPath(target: FolderCollapse["target"]): string {
   return target === "all" ? "" : normalizePath(target.path);
@@ -156,7 +144,7 @@ export function FileTree<T>({
   };
 
   const renderFile = (item: FileTreeItem<T>, label: string, depth: number) => {
-    const StatusIcon = STATUS_ICON[item.status] ?? Pencil;
+    const StatusIcon = fileStatusIcon(item.status);
     const selected = selectedId === item.id;
     const unmerged = item.status === "unmerged";
     return (

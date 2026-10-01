@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { cx } from "../../lib";
 import type { DiffLine, DiffViewMode } from "../../lib/types";
+import { fileStatusClass, fileStatusIcon } from "../file-tree";
 import { useHighlightedLine } from "./highlight";
 
 export type { DiffViewMode };
@@ -68,7 +69,7 @@ export function HunkSection({ label, fallbackLabel, children }: {
 }
 
 // Sticks to the top of the scroller so the @@ range stays visible while reading
-// a long hunk; .gc-diff-table__head offsets its own sticky top by this height.
+// a long hunk.
 export function HunkHeader({ id, children }: { id: string; children: string }) {
   return (
     <h3
@@ -80,20 +81,14 @@ export function HunkHeader({ id, children }: { id: string; children: string }) {
   );
 }
 
-const CHANGE_KIND_TONE: Record<string, string> = {
-  added: "border-[color-mix(in_srgb,var(--gc-success)_55%,var(--gc-border))] text-success",
-  deleted: "border-[color-mix(in_srgb,var(--gc-danger)_55%,var(--gc-border))] text-danger",
-};
-
+// The same glyph the file list shows for this change, so the header reads as
+// the row that was clicked.
 export function ChangeKind({ status }: { status: string }) {
+  const Icon = fileStatusIcon(status);
+  const label = status.replaceAll("_", " ");
   return (
-    <span
-      className={cx(
-        "rounded-[3px] border px-1.25 py-0.5 text-[9px] uppercase",
-        CHANGE_KIND_TONE[status] ?? "border-border text-muted",
-      )}
-    >
-      {status.replaceAll("_", " ")}
+    <span aria-label={label} className={cx("shrink-0", fileStatusClass(status))} role="img" title={label}>
+      <Icon aria-hidden="true" size={12} strokeWidth={2.6} />
     </span>
   );
 }
