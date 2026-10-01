@@ -1,4 +1,5 @@
-import { Copy, Download, ExternalLink, FolderInput, FolderPlus, FolderX, GitBranchPlus, GitCommitHorizontal, GitMerge, GitPullRequestArrow, Link, PackageCheck, PackageOpen, Pencil, RotateCcw, Tag, Trash2, Upload, X, } from "lucide-react";
+import { Copy, Download, ExternalLink, FolderInput, FolderPlus, FolderX, GitBranchPlus, GitCommitHorizontal, GitMerge, GitPullRequestArrow, Link, PackageCheck, PackageOpen, RotateCcw, Tag, Trash2, Upload, X, } from "lucide-react";
+import { PencilFilled } from "../components/ui/PencilFilled";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction, } from "react";
 
 import { primaryBranchDecoration } from "../components/CommitGraph";
@@ -248,7 +249,7 @@ export function useContextMenuActions({
                 ? [{ id: "cherry_pick", label: "Cherry pick commit", icon: <GitPullRequestArrow size={15} />, disabled: !enabled("cherry_pick") }]
                 : []),
             resetItem,
-            { id: "reword", label: "Edit commit message", icon: <Pencil size={15} />, disabled: !enabled("reword") },
+            { id: "reword", label: "Edit commit message", icon: <PencilFilled size={15} />, disabled: !enabled("reword") },
             { id: "revert", label: "Revert commit", icon: <RotateCcw size={15} />, disabled: !enabled("revert") },
         ];
         const copyItems = (): ContextAction[] => [
@@ -284,7 +285,7 @@ export function useContextMenuActions({
                 { id: "set_upstream", label: "Set upstream", icon: <Link size={15} /> },
                 { id: "checkout", label: "Checkout this commit", icon: <GitCommitHorizontal size={15} />, disabled: !enabled("checkout"), separatorBefore: true },
                 ...historyItems(false),
-                { id: "rename_ref", label: `Rename ${displayName}`, icon: <Pencil size={15} />, separatorBefore: true },
+                { id: "rename_ref", label: `Rename ${displayName}`, icon: <PencilFilled size={15} />, separatorBefore: true },
                 { id: "delete_ref", label: `Delete ${displayName}`, icon: <Trash2 size={15} />, danger: true },
                 ...copyItems(),
                 ...tagItems(),
@@ -323,7 +324,7 @@ export function useContextMenuActions({
                 ...(isRemoteRef
                     ? []
                     : [
-                        { id: "rename_ref", label: `Rename ${displayName}`, icon: <Pencil size={15} />, disabled: !refInfo, separatorBefore: true },
+                        { id: "rename_ref", label: `Rename ${displayName}`, icon: <PencilFilled size={15} />, disabled: !refInfo, separatorBefore: true },
                         { id: "delete_ref", label: `Delete ${displayName}`, icon: <Trash2 size={15} />, danger: true, disabled: !canDelete },
                     ]),
                 ...copyItems(),
@@ -617,7 +618,7 @@ export function useContextMenuActions({
                 disabled: !branchPushTarget(snapshot, branch, scope),
             },
             { id: "create_branch", label: "Create branch here", icon: <GitBranchPlus size={15} />, separatorBefore: true },
-            { id: "rename", label: `Rename ${displayName}`, icon: <Pencil size={15} />, disabled: !isLocal, separatorBefore: true },
+            { id: "rename", label: `Rename ${displayName}`, icon: <PencilFilled size={15} />, disabled: !isLocal, separatorBefore: true },
             {
                 id: "delete",
                 label: `Delete ${displayName}`,

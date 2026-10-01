@@ -1,4 +1,5 @@
-import { FilePen, Minus, Pencil, Plus } from "lucide-react";
+import { FilePen, Minus, Plus } from "lucide-react";
+import { PencilFilled } from "../ui/PencilFilled";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -8,7 +9,7 @@ import type { FileChangeCounts } from "./tree";
 type ChangeCountKind = keyof FileChangeCounts;
 
 const CHANGE_COUNT_PARTS: readonly { kind: ChangeCountKind; icon: LucideIcon; tone: string; label: string }[] = [
-  { kind: "modified", icon: Pencil, tone: "text-warning", label: "modified" },
+  { kind: "modified", icon: PencilFilled, tone: "text-warning", label: "modified" },
   { kind: "added", icon: Plus, tone: "text-success", label: "added" },
   { kind: "deleted", icon: Minus, tone: "text-danger", label: "deleted" },
   { kind: "renamed", icon: FilePen, tone: "text-accent", label: "renamed" },

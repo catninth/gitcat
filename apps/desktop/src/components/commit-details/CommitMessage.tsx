@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { PencilFilled } from "../ui/PencilFilled";
 import type { ReactNode } from "react";
 
 import { cx } from "../../lib";
@@ -43,7 +43,7 @@ export function MessageView({ subject, body, onEdit }: { subject: string; body: 
         >
             <h2 className={cx(HEADING, "flex items-start gap-1.5")}>
                 {subject}
-                <Pencil
+                <PencilFilled
                     aria-hidden="true"
                     className="ml-auto mt-0.5 shrink-0 text-muted opacity-0 transition-opacity duration-120 group-hover/msg:opacity-100 group-focus-visible/msg:opacity-100"
                     size={13}
