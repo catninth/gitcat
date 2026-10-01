@@ -2670,7 +2670,7 @@ impl GitBackend for GitCliBackend {
         };
         let mut result = None;
         for target in targets {
-            let mut args = os_args(&["fetch", "--progress"]);
+            let mut args = download_args("fetch");
             if options.prune {
                 args.push("--prune".into());
             }
@@ -2708,7 +2708,7 @@ impl GitBackend for GitCliBackend {
                 "Pull branch requires an explicit remote",
             ));
         }
-        let mut args = os_args(&["pull", "--progress"]);
+        let mut args = download_args("pull");
         match options.mode {
             PullMode::Merge => {
                 args.push("--no-rebase".into());
@@ -3270,6 +3270,27 @@ fn renewal_candidate<'a>(
         }
         _ => None,
     }
+}
+
+/// The start of a `fetch` or `pull`, with every ref outside the namespaces
+/// GitCat shows hidden from the connectivity check that follows the download.
+/// That check otherwise treats all local refs as already present, and a single
+/// ref another tool parked under its own prefix -- a Codex checkpoint whose
+/// object was pruned -- fails the whole command with "bad object". Hiding a ref
+/// only makes the check walk further; it never skips an object Git needs.
+fn download_args(subcommand: &str) -> Vec<OsString> {
+    os_args(&[
+        "-c",
+        "fetch.hideRefs=refs/",
+        "-c",
+        "fetch.hideRefs=!refs/heads/",
+        "-c",
+        "fetch.hideRefs=!refs/remotes/",
+        "-c",
+        "fetch.hideRefs=!refs/tags/",
+        subcommand,
+        "--progress",
+    ])
 }
 
 /// The token to try again with.

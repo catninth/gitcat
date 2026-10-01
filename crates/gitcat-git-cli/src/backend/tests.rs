@@ -2375,6 +2375,82 @@ async fn fetch_without_a_remote_updates_every_remote() {
 }
 
 #[tokio::test]
+async fn fetch_and_pull_ignore_foreign_refs_to_pruned_objects() {
+    let (directory, backend, _) = committed_repository().await;
+    let bare = tempdir().expect("bare remote");
+    git(bare.path(), &["init", "--bare", "--quiet"]);
+    let bare_path = bare.path().to_string_lossy().into_owned();
+    git(directory.path(), &["remote", "add", "origin", &bare_path]);
+    git(
+        directory.path(),
+        &["push", "--quiet", "-u", "origin", "main"],
+    );
+
+    let updater_parent = tempdir().expect("updater parent");
+    git(
+        updater_parent.path(),
+        &[
+            "clone", "--quiet", "--branch", "main", &bare_path, "updater",
+        ],
+    );
+    let updater = updater_parent.path().join("updater");
+    git(&updater, &["commit", "--allow-empty", "-m", "upstream"]);
+    git(&updater, &["push", "--quiet", "origin", "main"]);
+    let upstream_oid = git_stdout(&updater, &["rev-parse", "HEAD"]);
+
+    // Another tool's checkpoint ref whose object was pruned, as Codex leaves behind.
+    let foreign = directory.path().join(".git/refs/codex/checkpoints");
+    fs::create_dir_all(&foreign).expect("create foreign ref namespace");
+    fs::write(
+        foreign.join("gone"),
+        "d733a34e5816afc70ebbcccd0ad5852848dd2fe6\n",
+    )
+    .expect("write broken ref");
+
+    backend
+        .fetch(
+            directory.path(),
+            &FetchOptions {
+                remote: None,
+                prune: false,
+                tags: false,
+            },
+            CancellationToken::new(),
+        )
+        .await
+        .expect("fetch despite a broken foreign ref");
+    assert_eq!(
+        git_stdout(directory.path(), &["rev-parse", "refs/remotes/origin/main"]),
+        upstream_oid
+    );
+
+    git(
+        &updater,
+        &["commit", "--allow-empty", "-m", "upstream again"],
+    );
+    git(&updater, &["push", "--quiet", "origin", "main"]);
+    let pulled_oid = git_stdout(&updater, &["rev-parse", "HEAD"]);
+    backend
+        .pull(
+            directory.path(),
+            &PullOptions {
+                remote: None,
+                branch: None,
+                mode: PullMode::FastForwardOnly,
+                prune: false,
+                autostash: false,
+            },
+            CancellationToken::new(),
+        )
+        .await
+        .expect("pull despite a broken foreign ref");
+    assert_eq!(
+        git_stdout(directory.path(), &["rev-parse", "HEAD"]),
+        pulled_oid
+    );
+}
+
+#[tokio::test]
 async fn local_remote_fetch_pull_and_push_use_explicit_modes() {
     let (directory, backend, _) = committed_repository().await;
     let bare = tempdir().expect("bare remote");
