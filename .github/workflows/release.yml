@@ -30,7 +30,7 @@ jobs:
   # `nightly` pre-release; a manual run is a stable `v<version>` release that
   # is only published when the `publish` input is set.
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.plan.outputs.version }}
       channel: ${{ steps.plan.outputs.channel }}
@@ -38,7 +38,7 @@ jobs:
       publish: ${{ steps.plan.outputs.publish }}
       skip: ${{ steps.plan.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Plan the release
         id: plan
         env:
@@ -82,11 +82,11 @@ jobs:
     if: needs.prepare.outputs.skip != 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -158,7 +158,7 @@ jobs:
           }
           $entry | ConvertTo-Json -Depth 5 |
             Out-File 'target\release\bundle\nsis\platform.json' -Encoding utf8NoBOM
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: gitcat-windows-msvc
           if-no-files-found: error
@@ -175,11 +175,11 @@ jobs:
     # minimum supported baseline, so bumping it is a compatibility decision.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -272,7 +272,7 @@ jobs:
             '{"linux-x86_64": $appimage, "linux-x86_64-appimage": $appimage,
               "linux-x86_64-deb": $deb, "linux-x86_64-rpm": $rpm}' \
             > "$bundle/appimage/platform.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: gitcat-linux-x86_64
           if-no-files-found: error
@@ -289,9 +289,9 @@ jobs:
   publish:
     needs: [prepare, build-windows, build-linux]
     if: needs.prepare.outputs.publish == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
       - name: Build updater manifest
