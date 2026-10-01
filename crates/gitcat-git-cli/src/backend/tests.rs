@@ -2394,6 +2394,8 @@ async fn fetch_and_pull_ignore_foreign_refs_to_pruned_objects() {
         ],
     );
     let updater = updater_parent.path().join("updater");
+    git(&updater, &["config", "user.name", "GitCat Test"]);
+    git(&updater, &["config", "user.email", "gitcat@example.test"]);
     git(&updater, &["commit", "--allow-empty", "-m", "upstream"]);
     git(&updater, &["push", "--quiet", "origin", "main"]);
     let upstream_oid = git_stdout(&updater, &["rev-parse", "HEAD"]);
