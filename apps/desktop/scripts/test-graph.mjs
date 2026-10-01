@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const entryPoints = [
   fileURLToPath(new URL("../tests/columns.test.ts", import.meta.url)),
+  fileURLToPath(new URL("../tests/commitGraphWindow.test.ts", import.meta.url)),
   fileURLToPath(new URL("../tests/forge.test.ts", import.meta.url)),
   fileURLToPath(new URL("../tests/forgeConnections.test.tsx", import.meta.url)),
   fileURLToPath(new URL("../tests/graphPresentation.test.ts", import.meta.url)),

@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
 
+import { revealCommitRow } from "../components/CommitGraph";
 import type { CommitActionAvailability, CommitSummary, FileDiff, HistoryPage } from "../lib/types";
 import type { CenterView, CommitDetailsPanel } from "./state";
 
@@ -60,7 +61,7 @@ export function useCommitSelection({
     const jumpToCommit = useCallback((oid: string) => {
         selectCommitOid(oid);
         requestAnimationFrame(() => {
-            document.querySelector<HTMLElement>(`[data-oid="${oid}"]`)?.scrollIntoView({ block: "center" });
+            revealCommitRow(oid);
         });
     }, [selectCommitOid]);
 

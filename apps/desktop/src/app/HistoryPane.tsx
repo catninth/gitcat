@@ -167,6 +167,7 @@ export function HistoryPane({
     worktreeReachable,
 }: HistoryPaneProps) {
     const graphHeaderRef = useRef<HTMLDivElement | null>(null);
+    const graphScrollRef = useRef<HTMLDivElement | null>(null);
     // A drag stays local to this pane: writing every frame into the persisted
     // settings would re-render the whole app and restart the state save.
     const [draftWidths, setDraftWidths] = useState<GraphColumnWidths | null>(null);
@@ -320,6 +321,7 @@ export function HistoryPane({
                         onScroll={(event) => {
                             if (graphHeaderRef.current) graphHeaderRef.current.scrollLeft = event.currentTarget.scrollLeft;
                         }}
+                        ref={graphScrollRef}
                     >
                     {/* Spans the scrolled content so the overflow edge can run
                         the full height of the list rather than the viewport. */}
@@ -404,6 +406,7 @@ export function HistoryPane({
                             onSelect={selectCommit}
                             remoteIconUrls={remoteIconUrls}
                             avatarImages={avatarImages}
+                            scrollContainerRef={graphScrollRef}
                             searchMatchOids={graphMatches}
                             selectedOid={selectedOid}
                             wip={snapshot && !snapshot.status.clean

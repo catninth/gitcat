@@ -1,10 +1,11 @@
-import { memo, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Cloud, Inbox, Monitor, Tag } from "lucide-react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
+  RefObject,
 } from "react";
 
 import {
@@ -48,6 +49,15 @@ const WIP_NODE_EDGE = WIP_NODE_RADIUS + 1;
 // Mirrors --gc-wip-row-gap in styles.css.
 const WIP_GAP = 4;
 const WIP_ROW_Y = -(WIP_GAP + ROW_HEIGHT / 2);
+// Only the rows around the viewport are mounted, and only the routes crossing
+// them are painted. The window moves in whole chunks so a scroll re-renders
+// once every chunk rather than once every row, and the overscan keeps the
+// chunk edge -- where routes are cut off -- outside the viewport.
+const ROW_WINDOW_OVERSCAN = 20;
+const ROW_WINDOW_CHUNK = 20;
+// Rendered before the scroll container has been measured.
+const ROW_WINDOW_INITIAL = 80;
+const REVEAL_COMMIT_EVENT = "gitcat:reveal-commit";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -93,6 +103,11 @@ export interface CommitGraphProps {
   className?: string;
   emptyLabel?: string;
   formatTimestamp?: (seconds: number, offsetMinutes: number) => string;
+  /**
+   * The element the list scrolls in. With it the graph mounts only the rows
+   * near the viewport; without it every row is rendered.
+   */
+  scrollContainerRef?: RefObject<HTMLElement | null>;
 }
 
 export interface GraphPath {
@@ -102,6 +117,15 @@ export interface GraphPath {
   paintLane: number;
   merge: boolean;
   stash: boolean;
+  // The rows the route spans; `toRow` is the row count when the parent has not
+  // been loaded yet and the route runs off the bottom of the list.
+  fromRow: number;
+  toRow: number;
+}
+
+export interface RowWindow {
+  first: number;
+  last: number;
 }
 
 export interface GraphGeometry {
@@ -437,6 +461,8 @@ export function buildGraphGeometry(
         paintLane: Math.max(edge.from_lane, endLane),
         merge: edge.merge,
         stash: Boolean(commit.stash),
+        fromRow: index,
+        toRow: targetIndex,
       };
       commitPaths.push(path);
     }
@@ -454,6 +480,39 @@ export function buildGraphGeometry(
     width: view?.width ?? getCommitGraphWidth(commits),
     height: commits.length * ROW_STRIDE - ROW_GAP,
   };
+}
+
+// The rows to mount for a viewport spanning `top`..`bottom`, both measured from
+// the top of the list. Empty when there are no rows.
+export function getCommitGraphRowWindow(top: number, bottom: number, count: number): RowWindow {
+  if (count <= 0) return { first: 0, last: -1 };
+
+  const firstVisible = Math.floor(Math.max(0, top) / ROW_STRIDE);
+  const lastVisible = Math.floor(Math.max(0, bottom) / ROW_STRIDE);
+  const last = Math.min(
+    count - 1,
+    (Math.floor((lastVisible + ROW_WINDOW_OVERSCAN) / ROW_WINDOW_CHUNK) + 1) * ROW_WINDOW_CHUNK - 1,
+  );
+  const first = Math.min(
+    last,
+    Math.max(0, Math.floor((firstVisible - ROW_WINDOW_OVERSCAN) / ROW_WINDOW_CHUNK) * ROW_WINDOW_CHUNK),
+  );
+  return { first, last };
+}
+
+// Routes that cross the window, in their original paint order: filtering never
+// reorders, so the backmost-lane-on-top layering is untouched.
+export function pathsInRowWindow(paths: readonly GraphPath[], window: RowWindow): GraphPath[] {
+  return paths.filter((path) => path.fromRow <= window.last && path.toRow >= window.first);
+}
+
+// Scrolls the commit list to a row that may not be mounted. A row outside the
+// row window has no element to call `scrollIntoView` on, so the list does the
+// scrolling from the row's index instead.
+export function revealCommitRow(oid: string): void {
+  document
+    .querySelector<HTMLElement>("[data-commit-list]")
+    ?.dispatchEvent(new CustomEvent<string>(REVEAL_COMMIT_EVENT, { detail: oid }));
 }
 
 function dateFromUnixSeconds(seconds: number): Date | null {
@@ -915,8 +974,76 @@ export function CommitGraph({
   className,
   emptyLabel = "No commits to display.",
   formatTimestamp,
+  scrollContainerRef,
 }: CommitGraphProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const [measuredWindow, setMeasuredWindow] = useState<RowWindow>({ first: 0, last: ROW_WINDOW_INITIAL - 1 });
+  const commitCount = commits.length;
+  // Clamped here as well as when measured: a shorter history arrives one render
+  // before the effect below gets to measure it.
+  const rowWindow = useMemo<RowWindow>(() => {
+    if (!scrollContainerRef) return { first: 0, last: commitCount - 1 };
+    const last = Math.min(measuredWindow.last, commitCount - 1);
+    return { first: Math.max(0, Math.min(measuredWindow.first, last)), last };
+  }, [commitCount, measuredWindow, scrollContainerRef]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollContainerRef?.current;
+    if (!scroller) return undefined;
+
+    const measure = () => {
+      const list = listRef.current;
+      if (!list) return;
+      // The list sits below the WIP row inside the scrolled content, so its
+      // offset is read rather than assumed.
+      const top = scroller.getBoundingClientRect().top - list.getBoundingClientRect().top;
+      const next = getCommitGraphRowWindow(top, top + scroller.clientHeight, commitCount);
+      setMeasuredWindow((current) => (
+        current.first === next.first && current.last === next.last ? current : next
+      ));
+    };
+
+    measure();
+    scroller.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [commitCount, scrollContainerRef]);
+
+  const scrollRowIntoView = useCallback((index: number, block: "nearest" | "center") => {
+    const scroller = scrollContainerRef?.current;
+    const list = listRef.current;
+    if (!scroller || !list) {
+      list?.querySelector<HTMLElement>(`[data-commit-index="${index}"]`)?.scrollIntoView({ block });
+      return;
+    }
+
+    const listTop = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const rowTop = listTop + index * ROW_STRIDE;
+    const rowBottom = rowTop + ROW_HEIGHT;
+    if (block === "center") {
+      scroller.scrollTop = rowTop + ROW_HEIGHT / 2 - scroller.clientHeight / 2;
+    } else if (rowTop < scroller.scrollTop) {
+      scroller.scrollTop = rowTop;
+    } else if (rowBottom > scroller.scrollTop + scroller.clientHeight) {
+      scroller.scrollTop = rowBottom - scroller.clientHeight;
+    }
+  }, [scrollContainerRef]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+
+    const reveal = (event: Event) => {
+      const index = commits.findIndex((commit) => commit.oid === (event as CustomEvent<string>).detail);
+      if (index >= 0) scrollRowIntoView(index, "center");
+    };
+    list.addEventListener(REVEAL_COMMIT_EVENT, reveal);
+    return () => list.removeEventListener(REVEAL_COMMIT_EVENT, reveal);
+  }, [commits, scrollRowIntoView]);
   const nodeMaskId = `gc-node-mask-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const hasWip = Boolean(wip);
   const laneExtentWidth = useMemo(() => getCommitGraphWidth(commits), [commits]);
@@ -1001,7 +1128,9 @@ export function CommitGraph({
   // the branch stripe are CSS expressions over --gc-graph-max-x. Memoizing the
   // list therefore lets a column drag skip the whole row subtree, provided the
   // callers keep their handler identities stable.
-  const rows = useMemo(() => commits.map((commit, index) => (
+  const rows = useMemo(() => commits.slice(rowWindow.first, rowWindow.last + 1).map((commit, offset) => {
+    const index = rowWindow.first + offset;
+    return (
     <CommitRow
       color={geometry.colors.get(commit.oid) ?? FIRST_COLOR_SLOT}
       columns={columns}
@@ -1028,7 +1157,8 @@ export function CommitGraph({
       searchMatch={searchMatchOids?.has(commit.oid) ?? false}
       selected={commit.oid === selectedOid}
     />
-  )), [
+    );
+  }), [
     columns,
     commits,
     compactRefs,
@@ -1046,16 +1176,28 @@ export function CommitGraph({
     searchActive,
     searchMatchOids,
     selectedOid,
+    rowWindow,
   ]);
+  const windowPaths = useMemo(
+    () => pathsInRowWindow(geometry.paths, rowWindow),
+    [geometry.paths, rowWindow],
+  );
+  // The svg covers the row window only, so the mask and every route raster at
+  // the size of the viewport rather than of the whole loaded history. The top
+  // window keeps its origin at zero, where the WIP connectors reach above it.
+  const svgTop = rowWindow.first * ROW_STRIDE;
+  const svgBottom = rowWindow.last >= commits.length - 1
+    ? geometry.height
+    : (rowWindow.last + 1) * ROW_STRIDE;
+  const svgHeight = Math.max(0, svgBottom - svgTop);
+  const windowMaskTop = rowWindow.first === 0 ? maskTop : svgTop;
 
   const selectIndex = (index: number) => {
     const commit = commits[index];
     if (!commit) return;
 
     onSelect(commit);
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-commit-index="${index}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollRowIntoView(index, "nearest");
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1135,22 +1277,24 @@ export function CommitGraph({
           aria-hidden="true"
           className="gc-commit-graph__lanes"
           focusable="false"
-          height={geometry.height}
-          style={{ left: "var(--gc-graph-offset, 0px)" }}
-          viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+          height={svgHeight}
+          style={{ left: "var(--gc-graph-offset, 0px)", top: svgTop }}
+          viewBox={`0 ${svgTop} ${geometry.width} ${svgHeight}`}
           width={geometry.width}
         >
           <defs>
             <mask
-              height={geometry.height - maskTop}
+              height={svgBottom - windowMaskTop}
               id={nodeMaskId}
               maskUnits="userSpaceOnUse"
               width={geometry.width}
               x={0}
-              y={maskTop}
+              y={windowMaskTop}
             >
-              <rect fill="white" height={geometry.height - maskTop} width={geometry.width} x={0} y={maskTop} />
-              {commits.map((commit, index) => (commit.stash ? (
+              <rect fill="white" height={svgBottom - windowMaskTop} width={geometry.width} x={0} y={windowMaskTop} />
+              {commits.slice(rowWindow.first, rowWindow.last + 1).map((commit, offset) => {
+                const index = rowWindow.first + offset;
+                return commit.stash ? (
                 <rect
                   fill="black"
                   height={AVATAR_RADIUS * 2}
@@ -1168,7 +1312,8 @@ export function CommitGraph({
                   key={commit.oid}
                   r={isMergeNode(commit) ? MERGE_NODE_RADIUS - 1 : AVATAR_RADIUS}
                 />
-              )))}
+              );
+              })}
             </mask>
           </defs>
           <g mask={`url(#${nodeMaskId})`}>
@@ -1188,7 +1333,7 @@ export function CommitGraph({
                 vectorEffect="non-scaling-stroke"
               />
             ) : null}
-            {geometry.paths.map((path) => (
+            {windowPaths.map((path) => (
               <path
                 className={`${colorClass("gc-commit-graph__edge", path.color)}${path.merge ? " gc-commit-graph__edge--merge" : ""}${path.stash ? " gc-commit-graph__edge--stash" : ""}`}
                 d={path.data}
@@ -1200,7 +1345,17 @@ export function CommitGraph({
           </g>
         </svg>
       ) : null}
-      <div className="gc-commit-graph__rows">{rows}</div>
+      <div
+        className="gc-commit-graph__rows"
+        // Unmounted rows keep their space, so the scroll height, the time
+        // markers and every row's position match the fully rendered list.
+        style={{
+          paddingTop: rowWindow.first * ROW_STRIDE,
+          paddingBottom: Math.max(0, commits.length - 1 - rowWindow.last) * ROW_STRIDE,
+        }}
+      >
+        {rows}
+      </div>
       <div aria-hidden="true" className="gc-commit-time-markers gc-commit-time-markers--labels">
         {timeMarkers.map((marker) => (
           <span className="gc-commit-time-marker__label" key={marker.key} style={{ top: marker.top }}>
