@@ -34,7 +34,7 @@ export function RefSection({
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           {icon}
           <span>{label}</span>
-          <b className="ml-auto text-[10px] text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">
+          <b className="ml-auto text-[12px] tabular-nums text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">
             {count}
           </b>
         </button>

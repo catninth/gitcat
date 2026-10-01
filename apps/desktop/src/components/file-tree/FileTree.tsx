@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
@@ -193,8 +193,7 @@ export function FileTree<T>({
           title={node.path}
         >
           {expanded ? <ChevronDown aria-hidden="true" size={16} /> : <ChevronRight aria-hidden="true" size={16} />}
-          <Folder aria-hidden="true" size={17} />
-          <EntryName>{node.name}</EntryName>
+          <EntryName grow={false}>{node.name}</EntryName>
           {!expanded ? <ChangeCountSummary counts={node.changeCounts} /> : null}
         </TreeEntry>
         {expanded ? (

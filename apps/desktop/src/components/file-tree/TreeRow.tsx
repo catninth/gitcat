@@ -73,8 +73,9 @@ export function TreeEntry({ className = "", depth, ...props }: ComponentPropsWit
   );
 }
 
-export function EntryName({ children }: { children: string }) {
-  return <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{children}</span>;
+// A folder name does not grow, so its change counts sit right after it.
+export function EntryName({ children, grow = true }: { children: string; grow?: boolean }) {
+  return <span className={cx("min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", grow && "flex-1")}>{children}</span>;
 }
 
 // Revealed on row hover, or pinned open while a conflict is unresolved.

@@ -64,7 +64,7 @@ function RailSection({ count, icon, label, onClick }: {
       type="button"
     >
       {icon}
-      <b className="text-[10px] font-[750] leading-none text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">
+      <b className="text-[11px] font-[750] leading-none text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">
         {count}
       </b>
     </button>

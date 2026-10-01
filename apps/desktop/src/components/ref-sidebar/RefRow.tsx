@@ -49,7 +49,7 @@ export function RefName({ children }: { children: string }) {
 export function RefCounters({ ahead = 0, behind = 0 }: { ahead?: number; behind?: number }) {
   if (!ahead && !behind) return null;
   return (
-    <small className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-muted">
+    <small className="ml-auto flex shrink-0 items-center gap-1 text-[12px] font-semibold tabular-nums text-muted">
       {ahead ? <span>{`↑${ahead}`}</span> : null}
       {behind ? <span>{`↓${behind}`}</span> : null}
     </small>
@@ -91,7 +91,7 @@ export function PullRequestBadge({
   return (
     <button
       className={cx(
-        "flex shrink-0 items-center gap-0.75 rounded px-1 py-0.25 text-[10px] hover:bg-foreground/8",
+        "flex shrink-0 items-center gap-0.75 rounded px-1 py-0.25 text-[12px] hover:bg-foreground/8",
         pull.state === "draft" ? "text-muted" : "text-accent",
         onOpen ? "cursor-pointer" : "cursor-default",
       )}
@@ -103,7 +103,7 @@ export function PullRequestBadge({
       title={label}
       type="button"
     >
-      <Icon aria-hidden="true" size={11} />
+      <Icon aria-hidden="true" size={13} />
       {pull.number}
     </button>
   );
