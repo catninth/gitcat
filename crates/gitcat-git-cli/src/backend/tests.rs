@@ -3440,6 +3440,138 @@ async fn merge_conflict_is_a_successful_transition_requiring_user_action() {
         .expect("abort merge");
 }
 
+#[tokio::test]
+async fn sign_in_recovery_uses_the_commands_host_even_without_a_stored_token() {
+    let (directory, backend, _) = committed_repository().await;
+    git(
+        directory.path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/owner/repo.git",
+        ],
+    );
+    git(
+        directory.path(),
+        &[
+            "remote",
+            "add",
+            "other",
+            "https://gitlab.com/owner/repo.git",
+        ],
+    );
+    git(
+        directory.path(),
+        &["remote", "add", "ssh", "git@github.com:owner/repo.git"],
+    );
+    let remotes = backend.remotes(directory.path()).await.expect("remotes");
+
+    let options = backend
+        .network_options(&remotes, Some("origin"), true)
+        .await;
+    assert_eq!(options.remote_host.as_deref(), Some("github.com"));
+    assert!(options.credential.is_none());
+    // Exercise the real mutation error path without contacting GitHub or
+    // changing credentials. Git's alias emits the observed permission denial.
+    let failure = backend
+        .mutate_network(
+            directory.path(),
+            os_args(&[
+                "-c",
+                "alias.denied=!echo 'remote: Permission to owner/repo.git denied to user.' >&2; exit 1",
+                "denied",
+            ]),
+            CancellationToken::new(),
+            options.clone(),
+        )
+        .await
+        .expect_err("permission denial");
+    assert_eq!(failure.code, ErrorCode::ProtectedOperation);
+    assert_eq!(failure.recovery_actions[0].kind, "sign_in_github");
+    assert!(
+        backend
+            .network_options(&remotes, None, true)
+            .await
+            .remote_host
+            .is_none()
+    );
+    assert!(
+        backend
+            .network_options(&remotes, Some("ssh"), true)
+            .await
+            .remote_host
+            .is_none()
+    );
+
+    for code in [
+        ErrorCode::AuthenticationRequired,
+        ErrorCode::ProtectedOperation,
+    ] {
+        let error = ApiError::new(code, "access denied")
+            .with_recovery_action("open_settings", "Check the hosting service connection");
+        let recovered = network_recovery(error.clone(), options.remote_host.as_deref());
+        assert_eq!(recovered.recovery_actions[0].kind, "sign_in_github");
+        for host in [None, Some("gitlab.com"), Some("github.example.test")] {
+            assert_eq!(network_recovery(error.clone(), host), error);
+        }
+    }
+    let protected = ApiError::new(ErrorCode::ProtectedOperation, "protected branch");
+    assert_eq!(
+        network_recovery(protected.clone(), Some("github.com")),
+        protected
+    );
+    let rejected = ApiError::new(ErrorCode::NonFastForward, "fetch first")
+        .with_recovery_action("pull", "Pull, then push again");
+    assert_eq!(
+        network_recovery(rejected.clone(), Some("github.com")),
+        rejected
+    );
+
+    git(
+        directory.path(),
+        &[
+            "remote",
+            "set-url",
+            "--push",
+            "origin",
+            "https://gitlab.com/owner/repo.git",
+        ],
+    );
+    let remotes = backend
+        .remotes(directory.path())
+        .await
+        .expect("remotes with push URL");
+    assert_eq!(
+        backend
+            .network_options(&remotes, Some("origin"), true)
+            .await
+            .remote_host
+            .as_deref(),
+        Some("gitlab.com")
+    );
+    assert_eq!(
+        backend
+            .network_options(&remotes, Some("origin"), false)
+            .await
+            .remote_host
+            .as_deref(),
+        Some("github.com")
+    );
+
+    let mixed: Vec<_> = remotes
+        .into_iter()
+        .filter(|remote| remote.name != "other")
+        .collect();
+    assert!(
+        backend
+            .network_options(&mixed, None, false)
+            .await
+            .remote_host
+            .is_none()
+    );
+}
+
 /// One rejection is worth one renewal, and only a rejection.
 #[test]
 fn only_a_refused_credential_is_worth_renewing() {
@@ -3457,6 +3589,7 @@ fn only_a_refused_credential_is_worth_renewing() {
     );
     assert!(renewal_candidate(&refused(ErrorCode::NonFastForward), &options).is_none());
     assert!(renewal_candidate(&refused(ErrorCode::NetworkFailed), &options).is_none());
+    assert!(renewal_candidate(&refused(ErrorCode::ProtectedOperation), &options).is_none());
 
     // A command left to the user's own credential helpers has nothing to renew.
     let mut anonymous = GitRunOptions::network(1024);

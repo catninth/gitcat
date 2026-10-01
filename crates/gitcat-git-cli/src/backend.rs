@@ -743,21 +743,42 @@ impl GitCliBackend {
     /// them for the whole command, and a token for one host is no use to
     /// another. A fetch never lands here with more than one host, because it
     /// runs one command per remote.
-    async fn network_options(&self, remotes: &[RemoteInfo], remote: Option<&str>) -> GitRunOptions {
+    async fn network_options(
+        &self,
+        remotes: &[RemoteInfo],
+        remote: Option<&str>,
+        for_push: bool,
+    ) -> GitRunOptions {
         let mut options = GitRunOptions::network(NETWORK_OUTPUT_CAP);
-        let Some(source) = self.credentials.as_ref() else {
-            return options;
-        };
-        let hosts: BTreeSet<&str> = remotes
+        let selected_hosts: Vec<Option<String>> = remotes
             .iter()
             .filter(|entry| remote.is_none_or(|name| entry.name == name))
-            .filter_map(|entry| password_host(entry.url.as_ref()))
+            .map(|entry| {
+                let parsed = parse_remote_url(if for_push {
+                    &entry.push_url
+                } else {
+                    &entry.fetch_url
+                });
+                password_host(parsed.as_ref()).map(str::to_owned)
+            })
+            .collect();
+        let hosts: BTreeSet<&str> = selected_hosts
+            .iter()
+            .filter_map(|host| host.as_deref())
             .collect();
         let mut hosts = hosts.into_iter();
         let (Some(host), None) = (hosts.next(), hosts.next()) else {
             return options;
         };
 
+        // If Git might choose an SSH or local remote, do not offer an OAuth
+        // sign-in for an unrelated HTTPS remote in the same repository.
+        if selected_hosts.iter().all(Option::is_some) {
+            options.remote_host = Some(host.to_owned());
+        }
+        let Some(source) = self.credentials.as_ref() else {
+            return options;
+        };
         if let Some(token) = source.token_for(host).await {
             options.credential = Some(HostCredential {
                 host: host.to_owned(),
@@ -1062,6 +1083,7 @@ impl GitCliBackend {
     ) -> ApiResult<MutationResult> {
         let before_oid = self.head_oid(path).await?;
         options.allow_failure = true;
+        let remote_host = options.remote_host.clone();
         let output = self
             .runner
             .run(Some(path), &args, stdin, cancellation, options)
@@ -1070,7 +1092,7 @@ impl GitCliBackend {
             return self.mutation_result(path, before_oid).await;
         }
         let result = self.mutation_result(path, before_oid).await?;
-        let failure = self.runner.failure_error(&output);
+        let failure = network_recovery(self.runner.failure_error(&output), remote_host.as_deref());
         if result.needs_user_action && failure.code == ErrorCode::ConflictsPresent {
             Ok(result)
         } else {
@@ -2679,7 +2701,9 @@ impl GitBackend for GitCliBackend {
             }
             args.push("--".into());
             args.push(target.as_str().into());
-            let run = self.network_options(&remotes, Some(target.as_str())).await;
+            let run = self
+                .network_options(&remotes, Some(target.as_str()), false)
+                .await;
             result = Some(
                 self.mutate_network(path, args, cancellation.clone(), run)
                     .await?,
@@ -2735,7 +2759,7 @@ impl GitBackend for GitCliBackend {
             }
         }
         let run = self
-            .network_options(&remotes, options.remote.as_deref())
+            .network_options(&remotes, options.remote.as_deref(), false)
             .await;
         self.mutate_network(path, args, cancellation, run).await
     }
@@ -2800,7 +2824,7 @@ impl GitBackend for GitCliBackend {
             }
         }
         let run = self
-            .network_options(&remotes, options.remote.as_deref())
+            .network_options(&remotes, options.remote.as_deref(), true)
             .await;
         self.mutate_network(path, args, cancellation, run).await
     }
@@ -3291,6 +3315,21 @@ fn download_args(subcommand: &str) -> Vec<OsString> {
         subcommand,
         "--progress",
     ])
+}
+
+/// Offer the registered sign-in only for the failed command's known host.
+fn network_recovery(mut error: ApiError, host: Option<&str>) -> ApiError {
+    // Only GitHub.com has a registered device-flow application. A protected
+    // branch has no connection recovery action, so it never offers a sign-in.
+    if host.is_some_and(|host| host.eq_ignore_ascii_case("github.com")) {
+        for action in &mut error.recovery_actions {
+            if action.kind == "open_settings" {
+                action.kind = "sign_in_github".into();
+                action.label = "Sign in to GitHub again".into();
+            }
+        }
+    }
+    error
 }
 
 /// The token to try again with.

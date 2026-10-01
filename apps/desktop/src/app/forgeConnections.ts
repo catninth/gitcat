@@ -16,6 +16,8 @@ export interface ForgeConnections {
     credentials: readonly ForgeCredential[];
     /** A device-flow sign-in waiting for the user, or `null`. */
     pending: DeviceAuthorization | null;
+    /** Host whose sign-in code is being requested. Prevents duplicate starts. */
+    starting: string | null;
     notice: ForgeNotice | null;
     loaded: boolean;
     /**
@@ -41,6 +43,7 @@ export interface ForgeConnections {
 let state: ForgeConnections = {
     credentials: [],
     pending: null,
+    starting: null,
     notice: null,
     loaded: false,
     rejected: [],
@@ -91,18 +94,18 @@ export async function reloadForgeConnections(): Promise<void> {
  */
 export async function connectForge(host: string): Promise<void> {
     const target = host.trim().toLowerCase();
-    if (!target || state.pending) return;
-    publish({ notice: null });
+    if (!target || state.pending || state.starting) return;
+    publish({ notice: null, starting: target });
 
     let authorization: DeviceAuthorization;
     try {
         authorization = await startForgeLogin(target);
     } catch (error) {
-        publish({ notice: { host: target, tone: "error", message: message(error) } });
+        publish({ starting: null, notice: { host: target, tone: "error", message: message(error) } });
         return;
     }
 
-    publish({ pending: authorization });
+    publish({ pending: authorization, starting: null });
     // The code is useless without the page it goes into, so the page opens
     // with it. It stays on screen either way: a browser may refuse to open,
     // and the user may want to finish on another device.
@@ -124,12 +127,17 @@ async function follow(authorization: DeviceAuthorization): Promise<void> {
         try {
             poll = await pollForgeLogin(authorization.host);
         } catch (error) {
+            if (abandoned()) return;
             publish({ pending: null, notice: { host: authorization.host, tone: "error", message: message(error) } });
             return;
         }
         if (abandoned()) return;
 
         if (poll.state === "complete") {
+            // Success may close the recovery dialog. Read the new grant first
+            // so that decision never uses the previous credential's scopes.
+            await reloadForgeConnections();
+            if (abandoned()) return;
             publish({
                 pending: null,
                 notice: {
@@ -140,7 +148,6 @@ async function follow(authorization: DeviceAuthorization): Promise<void> {
                         : `Connected to ${authorization.host}.`,
                 },
             });
-            await reloadForgeConnections();
             return;
         }
         if (poll.state === "denied" || poll.state === "expired") {
@@ -225,7 +232,7 @@ export function dismissForgeNotice(): void {
  * store, so connecting in one dialog shows up in the others straight away.
  */
 export function useForgeConnections(): ForgeConnections {
-    const connections = useSyncExternalStore(subscribe, () => state);
+    const connections = useSyncExternalStore(subscribe, () => state, () => state);
     useEffect(() => {
         if (state.loaded || loading) return;
         loading = reloadForgeConnections().finally(() => { loading = null; });

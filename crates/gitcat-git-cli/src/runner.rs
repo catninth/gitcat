@@ -140,6 +140,9 @@ pub(crate) struct GitRunOptions {
     /// Token to offer Git for this one command. Set only for network commands,
     /// and only when the host it belongs to is the host being contacted.
     pub credential: Option<HostCredential>,
+    /// Unambiguous HTTPS/HTTP host, even when no credential is stored yet.
+    /// Recovery must target the failed command, not the tab open later.
+    pub remote_host: Option<String>,
 }
 
 impl GitRunOptions {
@@ -152,6 +155,7 @@ impl GitRunOptions {
             allow_stdout_truncation: false,
             extra_env: Vec::new(),
             credential: None,
+            remote_host: None,
         }
     }
 
@@ -164,6 +168,7 @@ impl GitRunOptions {
             allow_stdout_truncation: false,
             extra_env: Vec::new(),
             credential: None,
+            remote_host: None,
         }
     }
 
@@ -176,6 +181,7 @@ impl GitRunOptions {
             allow_stdout_truncation: false,
             extra_env: Vec::new(),
             credential: None,
+            remote_host: None,
         }
     }
 }
@@ -602,6 +608,7 @@ fn classify_failure(stderr: &str, stdout: &str, exit: &str) -> ApiError {
         || lower.contains("could not read username")
         || lower.contains("permission denied (publickey)")
         || lower.contains("terminal prompts disabled")
+        || lower.contains("the requested url returned error: 401")
     {
         (
             ErrorCode::AuthenticationRequired,
@@ -624,6 +631,11 @@ fn classify_failure(stderr: &str, stdout: &str, exit: &str) -> ApiError {
         (
             ErrorCode::ProtectedOperation,
             "The remote rejected the push because the sign-in may not change workflow files",
+        )
+    } else if remote_access_denied(&lower) {
+        (
+            ErrorCode::ProtectedOperation,
+            "The remote denied access; check your account and repository permissions",
         )
     } else if lower.contains("remote rejected") || lower.contains("protected branch") {
         (
@@ -682,6 +694,12 @@ fn classify_failure(stderr: &str, stdout: &str, exit: &str) -> ApiError {
         .with_details(details)
 }
 
+fn remote_access_denied(lower: &str) -> bool {
+    lower.contains("the requested url returned error: 403")
+        || (lower.contains("remote: permission to ") && lower.contains(" denied to "))
+        || lower.contains("remote: write access to repository not granted")
+}
+
 /// What to offer doing next about a failure, where the next step follows from
 /// the failure itself.
 ///
@@ -712,6 +730,9 @@ fn recovery_actions(code: ErrorCode, lower: &str) -> Vec<(&'static str, &'static
         }
         ErrorCode::ProtectedOperation if lower.contains("without 'workflow' scope") => {
             vec![("open_settings", "Sign in again to allow workflow files")]
+        }
+        ErrorCode::ProtectedOperation if remote_access_denied(lower) => {
+            vec![("open_settings", "Check the hosting service connection")]
         }
         _ => Vec::new(),
     }
@@ -844,6 +865,54 @@ mod tests {
         );
 
         assert_eq!(error.code, ErrorCode::NonFastForward);
+    }
+
+    #[test]
+    fn remote_permission_denials_offer_connection_settings() {
+        for stderr in [
+            concat!(
+                "remote: Permission to ikoliHU/clipcat.git denied to ikoliHU.\n",
+                "fatal: unable to access 'https://github.com/ikoliHU/clipcat.git/': ",
+                "The requested URL returned error: 403",
+            ),
+            "remote: Permission to owner/repo.git denied to user.",
+            "remote: Write access to repository not granted.",
+            "fatal: unable to access 'https://example.test/repo.git/': The requested URL returned error: 403",
+        ] {
+            let error = classify_failure(stderr, "", "exit code 128");
+            // An access denial does not imply an expired credential. Keep it
+            // out of the automatic authentication-renewal path.
+            assert_eq!(error.code, ErrorCode::ProtectedOperation, "{stderr}");
+            assert!(error.message.contains("denied access"));
+            assert_eq!(error.recovery_actions.len(), 1);
+            assert_eq!(error.recovery_actions[0].kind, "open_settings");
+            assert!(error.details.as_deref().unwrap().contains(stderr));
+        }
+    }
+
+    #[test]
+    fn http_authentication_failure_is_distinct_from_network_failure() {
+        let error = classify_failure(
+            "fatal: unable to access 'https://example.test/repo.git/': The requested URL returned error: 401",
+            "",
+            "exit code 128",
+        );
+        assert_eq!(error.code, ErrorCode::AuthenticationRequired);
+        assert_eq!(error.recovery_actions[0].kind, "open_settings");
+
+        for reason in [
+            "Could not resolve host: example.test",
+            "Failed to connect to example.test port 443",
+            "The requested URL returned error: 500",
+        ] {
+            let error = classify_failure(
+                &format!("fatal: unable to access 'https://example.test/repo.git/': {reason}"),
+                "",
+                "exit code 128",
+            );
+            assert_eq!(error.code, ErrorCode::NetworkFailed, "{reason}");
+            assert!(error.recovery_actions.is_empty());
+        }
     }
 
     #[test]

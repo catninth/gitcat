@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 const entryPoints = [
   fileURLToPath(new URL("../tests/columns.test.ts", import.meta.url)),
   fileURLToPath(new URL("../tests/forge.test.ts", import.meta.url)),
+  fileURLToPath(new URL("../tests/forgeConnections.test.tsx", import.meta.url)),
   fileURLToPath(new URL("../tests/graphPresentation.test.ts", import.meta.url)),
   fileURLToPath(new URL("../tests/mergeConflicts.test.ts", import.meta.url)),
   fileURLToPath(new URL("../tests/mutationQueue.test.ts", import.meta.url)),
@@ -18,6 +19,11 @@ for (const entryPoint of entryPoints) {
     bundle: true,
     format: "esm",
     platform: "node",
+    jsx: "automatic",
+    // React's server renderer uses require for Node built-ins in this ESM bundle.
+    banner: {
+      js: `import { createRequire } from "node:module"; const require = createRequire(${JSON.stringify(import.meta.url)});`,
+    },
     target: "node20",
     write: false,
   });

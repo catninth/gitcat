@@ -41,6 +41,7 @@ export function ForgeConnectPanel({
   host,
   integration,
   onHostNamed,
+  offerReconnect = false,
 }: {
   /** Offer an access token, and an address for a self-hosted install. */
   allowToken?: boolean;
@@ -49,6 +50,8 @@ export function ForgeConnectPanel({
   host: string | null;
   integration: Integration;
   onHostNamed?: (host: string) => void;
+  /** Keep a sign-in available after a repository access denial. */
+  offerReconnect?: boolean;
 }) {
   const connections = useForgeConnections();
   const [token, setToken] = useState("");
@@ -88,17 +91,10 @@ export function ForgeConnectPanel({
 
   return (
     <div className={cx("flex flex-col gap-2.5", className)}>
-      {credential ? (
-        <ConnectedAccount
-          account={account}
-          credential={credential}
-          host={host ?? ""}
-          onDisconnect={() => { if (host) void disconnectForge(host); }}
-          onReconnect={() => { if (host) void connectForge(host); }}
-          rejected={Boolean(host) && forgeRejected(connections, host ?? "")}
-          signingIn={connections.pending !== null}
-        />
-      ) : pending ? (
+      {connections.starting === host?.toLowerCase() ? (
+        <p role="status" className="text-[11px] text-muted">Requesting a sign-in code...</p>
+      ) : null}
+      {pending ? (
         <div className="flex flex-col gap-1.5 rounded-[5px] border border-border bg-background p-2.5">
           <p className="flex flex-wrap items-center gap-1 text-[11px] leading-[1.45] text-muted">
             Open <span className="text-foreground">{pending.verification_uri}</span>
@@ -134,6 +130,18 @@ export function ForgeConnectPanel({
             <Button compact onClick={() => cancelForgeSignIn()}>Cancel</Button>
           </div>
         </div>
+      ) : credential ? (
+        <ConnectedAccount
+          account={account}
+          canSignIn={integration.support === "sign_in"}
+          credential={credential}
+          host={host ?? ""}
+          offerReconnect={offerReconnect}
+          onDisconnect={() => { if (host) void disconnectForge(host); }}
+          onReconnect={() => { if (host) void connectForge(host); }}
+          rejected={Boolean(host) && forgeRejected(connections, host ?? "")}
+          signingIn={connections.pending !== null || connections.starting !== null}
+        />
       ) : takesToken ? (
         <div className="flex flex-col gap-2 rounded-[7px] border border-border bg-background/45 px-3.5 py-3">
           <p className="text-[12px] text-muted">
@@ -185,7 +193,7 @@ export function ForgeConnectPanel({
               : `${integration.label} is not connected`}
           </p>
           <Button
-            disabled={integration.support !== "sign_in" || !host || connections.pending !== null}
+            disabled={integration.support !== "sign_in" || !host || connections.pending !== null || connections.starting !== null}
             onClick={() => { if (host) void connectForge(host); }}
             tone="accent"
           >
@@ -230,16 +238,20 @@ export function ForgeConnectPanel({
  */
 function ConnectedAccount({
   account,
+  canSignIn,
   credential,
   host,
+  offerReconnect,
   onDisconnect,
   onReconnect,
   rejected,
   signingIn,
 }: {
   account: ForgeAccount | null;
+  canSignIn: boolean;
   credential: ForgeCredential;
   host: string;
+  offerReconnect: boolean;
   onDisconnect: () => void;
   onReconnect: () => void;
   rejected: boolean;
@@ -252,7 +264,6 @@ function ConnectedAccount({
   // scope says one thing does not.
   const missingScopes = credential.missing_scopes ?? [];
   const stale = !rejected && missingScopes.length > 0;
-  const canSignIn = credential.kind === "oauth";
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -278,14 +289,15 @@ function ConnectedAccount({
             Connected
           </span>
         )}
-        {(rejected || stale) && canSignIn ? (
+        {(rejected || stale || offerReconnect) && canSignIn ? (
           <Button compact disabled={signingIn} onClick={onReconnect} tone="accent">
-            Sign in
+            Sign in again
           </Button>
         ) : null}
         <Button
           aria-label={`Disconnect from ${host}`}
           compact
+          disabled={signingIn}
           onClick={onDisconnect}
           tone="danger"
         >
@@ -310,11 +322,10 @@ function ConnectedAccount({
 function staleReason(missing: readonly string[]): string {
   if (missing.includes("workflow")) {
     return `This sign-in was granted before GitCat asked for the workflow permission, so pushing a`
-      + ` change under .github/workflows is rejected. Signing in again grants it; nothing else`
-      + ` changes.`;
+      + ` change under .github/workflows is rejected. Sign in again and approve the requested access.`;
   }
   return `This sign-in was granted without the ${missing.join(", ")} permission, which GitCat now asks`
-    + ` for. Signing in again grants it; nothing else changes.`;
+    + ` for. Sign in again and approve the requested access.`;
 }
 
 /** The account's picture, or its initials while there is none to draw. */

@@ -8,6 +8,7 @@ import { OperationBanner } from "./components/OperationBanner";
 import { AddRemoteDialog, type AddRemoteRequest } from "./components/remotes";
 import { REF_RAIL_WIDTH, RefPanel, type BranchContextMenuRequest } from "./components/ref-sidebar";
 import { StartPage } from "./components/start-page";
+import { GitHubAccessDialog } from "./components/forge/GitHubAccessDialog";
 import { AppShell, Resizer } from "./components/shell";
 import { ConfirmBar, Toolbar } from "./components/toolbar";
 import {
@@ -43,6 +44,7 @@ import { withForgeOverrides } from "./lib/forge";
 import { openExternal } from "./lib/platform";
 import { useAvatars } from "./app/useAvatars";
 import { useForgeStatus } from "./app/useForgeStatus";
+import { connectForge } from "./app/forgeConnections";
 import { EMPTY_COMMIT_DRAFT, EMPTY_STATE } from "./app/defaults";
 import { continuableOperation } from "./app/snapshot";
 import type { BranchMenuState, CenterView, CommitMenuState, ConfirmState, PromptState, RuntimeRepository, TabMenuState } from "./app/state";
@@ -106,6 +108,7 @@ function App() {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [initializing, setInitializing] = useState(true);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [gitHubAccessOpen, setGitHubAccessOpen] = useState(false);
     const [prompt, setPrompt] = useState<PromptState>(null);
     const [startDialog, setStartDialog] = useState<"clone" | "create" | null>(null);
     const [confirmRequest, setConfirmRequest] = useState<ConfirmState>(null);
@@ -561,7 +564,7 @@ function App() {
         setRightPanelVisible,
         setSettingsOpen,
         setTabMenu,
-        settingsOpen,
+        settingsOpen: settingsOpen || gitHubAccessOpen,
         showError,
         snapshot,
         stagePaths,
@@ -624,6 +627,10 @@ function App() {
     // because one of the steps is a confirmation rather than a command.
     useEffect(() => {
         registerRecoveryHandlers({
+            sign_in_github: () => {
+                setGitHubAccessOpen(true);
+                void connectForge("github.com");
+            },
             open_settings: () => setSettingsOpen(true),
             pull: () => pullActiveRepository(),
             push_force: () => escalateForcePush(),
@@ -1046,6 +1053,7 @@ function App() {
                 tabMenu={tabMenu}
                 toasts={toasts}
             />
+            {gitHubAccessOpen ? <GitHubAccessDialog onClose={() => setGitHubAccessOpen(false)} /> : null}
         </AppShell>
     );
 }
