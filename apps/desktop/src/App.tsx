@@ -25,6 +25,7 @@ import { gitcatApi } from "./lib/api";
 import { createForgeRepository } from "./lib/forgeAuth";
 import { useAppUpdate } from "./lib/updates";
 import type {
+    BranchInfo,
     CommitActionAvailability,
     ConflictFileDetails,
     DiffRequest,
@@ -462,6 +463,10 @@ function App() {
         });
     }, [runMutation, snapshot]);
 
+    const checkoutLocalBranch = useCallback((branch: BranchInfo) => {
+        if (!branch.is_head) void runMutation(`Checked out ${branch.name}`, (repository) => gitcatApi.checkoutBranch(repository.repository_id, branch.name));
+    }, [runMutation]);
+
     const copySha = useCallback(async (oid: string) => {
         try {
             await navigator.clipboard.writeText(oid);
@@ -849,12 +854,14 @@ function App() {
                     ) : (
                         <Toolbar
                             branchName={currentBranch(snapshot)}
+                            branches={snapshot?.local_branches ?? []}
                             busy={busy}
                             canPop={stashes.length > 0}
                             canStash={(snapshot?.status.entries.length ?? 0) > 0}
                             conflictIndicator={conflictIndicator}
                             conflictTarget={conflictTarget}
                             conflictTargets={conflictTargets}
+                            onCheckoutBranch={checkoutLocalBranch}
                             onCreateBranch={createBranchAtHead}
                             onConflictIndicator={showConflictIndicator}
                             onConflictTargetChange={selectConflictTarget}
@@ -913,9 +920,7 @@ function App() {
                                         scope: request.scope,
                                     });
                                 }}
-                                onCheckout={(branch) => {
-                                    if (!branch.is_head) void runMutation(`Checked out ${branch.name}`, (repository) => gitcatApi.checkoutBranch(repository.repository_id, branch.name));
-                                }}
+                                onCheckout={checkoutLocalBranch}
                                 onCheckoutRemote={checkoutRemoteBranch}
                                 onCreateBranch={() => currentHeadOid ? setPrompt({ kind: "create_branch", startOid: currentHeadOid }) : undefined}
                                 onOpenPullRequest={openPullRequest}

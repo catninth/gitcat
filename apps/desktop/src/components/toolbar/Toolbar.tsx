@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 
 import { cx } from "../../lib";
-import type { PullMode, RepositoryOperationState } from "../../lib/types";
+import type { BranchInfo, PullMode, RepositoryOperationState } from "../../lib/types";
 import { MenuHeading, MenuItem, MenuNote, MenuRadio, MenuSurface } from "../menu";
 import { IconButton, Spinner } from "../ui";
 import { CONFLICT_STATUS_TONE, ConflictIndicatorButton } from "./ConflictIndicatorButton";
@@ -34,6 +34,7 @@ export const PULL_LABELS: Record<PullMode, string> = {
 interface ToolbarProps {
   repositoryName: string;
   branchName: string;
+  branches: BranchInfo[];
   operation: RepositoryOperationState;
   busy: boolean;
   refreshing?: boolean;
@@ -50,6 +51,7 @@ interface ToolbarProps {
   onPullModeChange: (mode: PullMode) => void;
   onPull: (mode: PullMode) => void;
   onPush: () => void;
+  onCheckoutBranch: (branch: BranchInfo) => void;
   onCreateBranch: () => void;
   onStash: () => void;
   onStashPop: () => void;
@@ -63,6 +65,7 @@ interface ToolbarProps {
 export function Toolbar({
   repositoryName,
   branchName,
+  branches,
   operation,
   busy,
   refreshing = false,
@@ -79,6 +82,7 @@ export function Toolbar({
   onPullModeChange,
   onPull,
   onPush,
+  onCheckoutBranch,
   onCreateBranch,
   onStash,
   onStashPop,
@@ -133,7 +137,13 @@ export function Toolbar({
   return (
     <header className="gc-no-select z-15 grid min-h-15.25 flex-[0_0_61px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.75 border-b border-border bg-[color-mix(in_srgb,var(--gc-panel)_91%,black)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
-        <RepositoryContext branchName={branchName} repositoryName={repositoryName} />
+        <RepositoryContext
+          branchName={branchName}
+          branches={branches}
+          disabled={busy}
+          onCheckout={onCheckoutBranch}
+          repositoryName={repositoryName}
+        />
       </div>
 
       <div className="flex min-w-0 items-center gap-1.25 justify-self-center" aria-label="Repository actions">
