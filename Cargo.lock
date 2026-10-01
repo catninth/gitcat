@@ -1485,7 +1485,7 @@ dependencies = [
 
 [[package]]
 name = "gitcat-contracts"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1495,7 +1495,7 @@ dependencies = [
 
 [[package]]
 name = "gitcat-core"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "async-trait",
  "dunce",
@@ -1509,7 +1509,7 @@ dependencies = [
 
 [[package]]
 name = "gitcat-desktop"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "async-trait",
  "catninth-updater",
@@ -1534,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "gitcat-forge"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "base64 0.22.1",
  "gitcat-contracts",
@@ -1550,7 +1550,7 @@ dependencies = [
 
 [[package]]
 name = "gitcat-git-cli"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "async-trait",
  "dunce",
