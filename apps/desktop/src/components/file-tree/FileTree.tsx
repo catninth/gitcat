@@ -183,7 +183,7 @@ export function FileTree<T>({
       <div key={node.path} role="listitem">
         <TreeEntry
           aria-expanded={expanded}
-          className="w-full text-[color-mix(in_srgb,var(--gc-muted)_88%,var(--gc-text))] [&>svg:first-child]:-mr-1 [&>svg]:shrink-0"
+          className="w-full rounded-[3px] hover:bg-row-hover text-[color-mix(in_srgb,var(--gc-muted)_88%,var(--gc-text))] [&>svg:first-child]:-mr-1 [&>svg]:shrink-0"
           depth={depth}
           onClick={() => toggleFolder(node.path)}
           onContextMenu={onFolderContextMenu ? (event) => {
