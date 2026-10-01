@@ -29,11 +29,11 @@ export function WorktreeHeader({
         >
           <Trash2 aria-hidden="true" size={15} />
         </IconButton>
-        <div className="flex min-w-0 items-center gap-1.25 text-[12px]">
+        <div className="flex min-w-0 items-center gap-1.25 text-[15px]">
           <strong className="whitespace-nowrap">
             {clean ? "No file changes" : `${changeCount} file change${changeCount === 1 ? "" : "s"}`}
           </strong>
-          <small className="text-[11px] text-muted">on</small>
+          <small className="text-[13px] text-muted">on</small>
           <Badge className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" tone="accent">{branchName}</Badge>
         </div>
       </div>

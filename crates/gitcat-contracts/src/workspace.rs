@@ -341,6 +341,12 @@ impl Default for GraphColumnWidths {
     }
 }
 
+/// GitCat's own sizes were drawn for a dense layout; one step up reads like
+/// GitKraken at its 100%.
+pub const DEFAULT_UI_ZOOM_PERCENT: u16 = 110;
+pub const MIN_UI_ZOOM_PERCENT: u16 = 80;
+pub const MAX_UI_ZOOM_PERCENT: u16 = 300;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
@@ -355,6 +361,8 @@ pub struct AppSettings {
     pub graph_columns: GraphColumnSettings,
     pub graph_column_widths: GraphColumnWidths,
     pub keybinds: KeybindSettings,
+    /// Whole-interface zoom, in percent of the webview's natural size.
+    pub ui_zoom_percent: u16,
     /// Hosting service for URL hosts the backend cannot recognise on its
     /// own, keyed by lower-cased host. A self-hosted GitHub Enterprise or
     /// GitLab install looks like any other domain until it is named here.
@@ -381,6 +389,7 @@ impl Default for AppSettings {
             graph_columns: GraphColumnSettings::default(),
             graph_column_widths: GraphColumnWidths::default(),
             keybinds: KeybindSettings::default(),
+            ui_zoom_percent: DEFAULT_UI_ZOOM_PERCENT,
             forge_overrides: BTreeMap::new(),
             avatars: AvatarSettings::default(),
             forge: ForgeSettings::default(),

@@ -16,6 +16,7 @@ import { normalizeAppSettings } from "../../app/workspace";
 import { cx } from "../../lib";
 import { duplicateKeybinds } from "../../lib/keybinds";
 import { isTauriEnvironment } from "../../lib/platform";
+import { applyZoom, ZOOM_LEVELS } from "../../lib/zoom";
 import type { AppSettings, AppTheme, PullMode, ThemeColors } from "../../lib/types";
 import { Button, Input, Modal, ModalSpacer } from "../ui";
 import { IntegrationsPage } from "./IntegrationsPage";
@@ -71,6 +72,12 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
     applyTheme(draft);
   }, [draft]);
   useEffect(() => () => applyTheme(settings), [settings]);
+  useEffect(() => {
+    applyZoom(draft.ui_zoom_percent).catch(() => undefined);
+  }, [draft.ui_zoom_percent]);
+  useEffect(() => () => {
+    applyZoom(settings.ui_zoom_percent).catch(() => undefined);
+  }, [settings.ui_zoom_percent]);
 
   const updateSelectedTheme = (mutate: (theme: AppTheme) => AppTheme) => {
     setDraft((current) => ({
@@ -230,6 +237,23 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
                     type="number"
                     value={draft.diff_context_lines}
                   />
+                </Field>
+              </section>
+              <section>
+                <SectionHeading>Appearance</SectionHeading>
+                <Field hint="Ctrl+= / Ctrl+- / Ctrl+0" label="Interface zoom">
+                  <select
+                    className={FIELD_INPUT}
+                    onChange={(event) => setDraft((current) => ({ ...current, ui_zoom_percent: Number(event.target.value) }))}
+                    value={draft.ui_zoom_percent}
+                  >
+                    {(ZOOM_LEVELS as readonly number[]).includes(draft.ui_zoom_percent) ? null : (
+                      <option value={draft.ui_zoom_percent}>{draft.ui_zoom_percent}%</option>
+                    )}
+                    {ZOOM_LEVELS.map((level) => (
+                      <option key={level} value={level}>{level}%</option>
+                    ))}
+                  </select>
                 </Field>
               </section>
               <section className="col-span-full">

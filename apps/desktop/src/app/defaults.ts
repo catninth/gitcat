@@ -1,5 +1,6 @@
 import { ALL_GRAPH_COLUMNS, DEFAULT_GRAPH_COLUMN_WIDTHS } from "../lib/columns";
 import { DEFAULT_KEYBINDS } from "../lib/keybinds";
+import { DEFAULT_ZOOM_PERCENT } from "../lib/zoom";
 import type { AppSettings, PersistedState } from "../lib/types";
 import type { CommitDraft } from "../components/worktree";
 import { cloneDefaultThemes, DEFAULT_THEME_ID } from "./themePresets";
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     graph_columns: ALL_GRAPH_COLUMNS,
     graph_column_widths: DEFAULT_GRAPH_COLUMN_WIDTHS,
     keybinds: DEFAULT_KEYBINDS,
+    ui_zoom_percent: DEFAULT_ZOOM_PERCENT,
     forge_overrides: {},
     avatars: { enabled: true, gravatar_fallback: false },
     forge: { pull_requests: true, checks: true },

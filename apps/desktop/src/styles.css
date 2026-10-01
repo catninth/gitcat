@@ -246,7 +246,7 @@
 }
 
 .gc-graph-columns {
-  @apply h-6 text-[8px] font-[750] uppercase tracking-[0.08em] text-muted;
+  @apply h-6 text-[9px] font-[750] uppercase tracking-[0.08em] text-muted;
 }
 
 .gc-graph-header {
@@ -379,7 +379,7 @@
 }
 
 .gc-commit-time-marker__label {
-  @apply absolute right-2 -translate-y-1/2 whitespace-nowrap rounded-[3px] px-[7px] py-[2px] text-[9px] font-bold leading-[1.2];
+  @apply absolute right-2 -translate-y-1/2 whitespace-nowrap rounded-[3px] px-[7px] py-[2px] text-[10px] font-bold leading-[1.2];
   background: color-mix(in srgb, var(--gc-panel) 78%, var(--gc-background));
   color: color-mix(in srgb, var(--gc-muted) 78%, transparent);
 }
@@ -496,13 +496,13 @@
  * widest of the two drives the width. Pure CSS, no measuring pass.
  */
 .gc-wip-row__summary {
-  @apply inline-grid h-[21px] max-w-full flex-[0_1_auto] cursor-text items-center overflow-hidden rounded-[4px] border border-border bg-background px-[7px] text-[11px] leading-[1.2] text-foreground;
+  @apply inline-grid h-[21px] max-w-full flex-[0_1_auto] cursor-text items-center overflow-hidden rounded-[4px] border border-border bg-background px-[7px] text-[13px] leading-[1.2] text-foreground;
   min-width: 75px;
 }
 
 .gc-wip-row__summary::after,
 .gc-wip-row__summary input {
-  @apply col-start-1 row-start-1 w-auto min-w-0 whitespace-pre text-[11px] leading-[1.2];
+  @apply col-start-1 row-start-1 w-auto min-w-0 whitespace-pre text-[13px] leading-[1.2];
   font: inherit;
 }
 
@@ -523,10 +523,10 @@
   border-color: var(--gc-accent);
 }
 .gc-wip-row__change-icon { @apply shrink-0 text-warning [stroke-width:2.5]; }
-.gc-wip-row small { @apply overflow-hidden text-ellipsis text-[9px] text-muted; }
+.gc-wip-row small { @apply overflow-hidden text-ellipsis text-[11px] text-muted; }
 
 .gc-wip-row__conflicts {
-  @apply inline-flex items-center gap-[3px] px-[6px] text-[9px] text-danger;
+  @apply inline-flex items-center gap-[3px] px-[6px] text-[11px] text-danger;
 }
 
 .gc-wip-row > b {
@@ -592,7 +592,7 @@
 }
 
 .gc-commit-row__subject {
-  @apply min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-[7px] text-[11px] font-[440];
+  @apply min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-[7px] text-[13px] font-[440];
   color: color-mix(in srgb, var(--gc-text) 72%, var(--gc-muted));
 }
 
@@ -611,7 +611,7 @@
 .gc-commit-row__author,
 .gc-commit-row__time,
 .gc-commit-row__oid-wrap {
-  @apply min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-[6px] text-[9px] text-muted;
+  @apply min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-[6px] text-[11px] text-muted;
 }
 
 .gc-commit-row__oid-wrap { @apply overflow-visible; }
@@ -648,7 +648,7 @@
 
 .gc-ref-label {
   --gc-ref-color: var(--gc-row-branch-color, var(--gc-accent));
-  @apply relative z-[2] inline-flex h-[21px] min-w-0 max-w-[125px] select-none items-center gap-1 overflow-hidden whitespace-nowrap rounded-[3px] px-[7px] py-px text-[11px] font-[620];
+  @apply relative z-[2] inline-flex h-[21px] min-w-0 max-w-[125px] select-none items-center gap-1 overflow-hidden whitespace-nowrap rounded-[3px] px-[7px] py-px text-[12px] font-[620];
   background: color-mix(in srgb, var(--gc-ref-color) 14%, var(--gc-panel));
   color: color-mix(in srgb, var(--gc-text) 84%, var(--gc-ref-color));
   transition: background-color 90ms ease-out, color 90ms ease-out;
@@ -682,7 +682,7 @@
 
 .gc-ref-stack__count {
   --gc-ref-color: var(--gc-row-branch-color, var(--gc-accent));
-  @apply relative z-[2] inline-flex h-[21px] shrink-0 select-none items-center rounded-[3px] px-[5px] text-[10px] font-bold leading-none;
+  @apply relative z-[2] inline-flex h-[21px] shrink-0 select-none items-center rounded-[3px] px-[5px] text-[11px] font-bold leading-none;
   background: color-mix(in srgb, var(--gc-ref-color) 18%, var(--gc-panel));
   color: color-mix(in srgb, var(--gc-text) 74%, var(--gc-ref-color));
 }

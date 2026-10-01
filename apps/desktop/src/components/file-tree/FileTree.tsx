@@ -177,10 +177,10 @@ export function FileTree<T>({
           title={item.path}
         >
           <b aria-label={item.statusLabel} className={fileStatusClass(item.status)} title={item.statusLabel}>
-            <StatusIcon aria-hidden="true" size={12} strokeWidth={2.6} />
+            <StatusIcon aria-hidden="true" size={15} strokeWidth={2.6} />
           </b>
           <EntryName>{label}</EntryName>
-          {item.binary ? <small className="text-[9px] text-warning">binary</small> : null}
+          {item.binary ? <small className="text-[11px] text-warning">binary</small> : null}
         </TreeEntry>
         {renderAction ? <RowAction pinned={unmerged}>{renderAction(item.data)}</RowAction> : null}
       </TreeRow>
@@ -204,8 +204,8 @@ export function FileTree<T>({
           } : undefined}
           title={node.path}
         >
-          {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}
-          <Folder aria-hidden="true" size={14} />
+          {expanded ? <ChevronDown aria-hidden="true" size={16} /> : <ChevronRight aria-hidden="true" size={16} />}
+          <Folder aria-hidden="true" size={17} />
           <EntryName>{node.name}</EntryName>
           {!expanded ? <ChangeCountSummary counts={node.changeCounts} /> : null}
         </TreeEntry>
@@ -220,7 +220,7 @@ export function FileTree<T>({
 
   if (!items.length) {
     return (
-      <div className={cx("flex min-h-14.5 items-center justify-center gap-1.5 text-[10px] text-muted", emptyClassName)}>
+      <div className={cx("flex min-h-14.5 items-center justify-center gap-1.5 text-[12px] text-muted", emptyClassName)}>
         {emptyState}
       </div>
     );
@@ -230,7 +230,7 @@ export function FileTree<T>({
     <div className={cx("min-h-0 min-w-0 overflow-auto", className)}>
       {mode === "tree" && folderPaths.length ? (
         <button
-          className="flex min-h-7.25 cursor-pointer items-center bg-transparent px-2 text-[10px] text-[color-mix(in_srgb,var(--gc-text)_83%,var(--gc-muted))] hover:text-accent"
+          className="flex min-h-7.25 cursor-pointer items-center bg-transparent px-2 text-[13px] text-[color-mix(in_srgb,var(--gc-text)_83%,var(--gc-muted))] hover:text-accent"
           onClick={toggleAll}
           type="button"
         >

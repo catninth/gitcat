@@ -60,14 +60,14 @@ export function StatusSection({
 }) {
   return (
     <section className={cx("gc-no-select border-b border-border", open && "flex min-h-24 flex-1 flex-col")}>
-      <header className="flex h-9 flex-[0_0_auto] items-center justify-between pl-1.25 pr-2">
+      <header className="flex h-10.5 flex-[0_0_auto] items-center justify-between pl-1.25 pr-2">
         <button
           aria-expanded={open}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 bg-transparent px-0.75 text-left text-[10px] font-bold uppercase tracking-[0.04em] text-muted hover:text-foreground"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 bg-transparent px-0.75 text-left text-[12px] font-bold uppercase tracking-[0.04em] text-muted hover:text-foreground"
           onClick={onToggle}
           type="button"
         >
-          {open ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}
+          {open ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
           <span>{label} <b className="ml-0.75 text-foreground">{items.length}</b></span>
         </button>
         <span className="flex shrink-0 items-center gap-1">

@@ -48,6 +48,7 @@ fn defaults_include_theme_and_bounded_queries() {
     let settings = AppSettings::default();
     assert_eq!(settings.history_page_size, 200);
     assert_eq!(settings.diff_context_lines, 3);
+    assert_eq!(settings.ui_zoom_percent, 110);
     let theme = settings
         .themes
         .iter()

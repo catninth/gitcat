@@ -653,6 +653,8 @@ export interface AppSettings {
   graph_columns: GraphColumnSettings;
   graph_column_widths: GraphColumnWidths;
   keybinds: KeybindSettings;
+  /** Whole-interface zoom in percent; see `lib/zoom.ts`. */
+  ui_zoom_percent: number;
   /** Hosting service per URL host, for installs the backend cannot name. */
   forge_overrides: Record<string, ForgeKind>;
   avatars: AvatarSettings;

@@ -10,6 +10,7 @@ import {
 import { isForgeKind } from "../lib/forge";
 import { DEFAULT_KEYBINDS, duplicateKeybinds, keybindValidationError } from "../lib/keybinds";
 import { samePath } from "../lib/paths";
+import { MAX_ZOOM_PERCENT, MIN_ZOOM_PERCENT } from "../lib/zoom";
 import type {
     AppSettings,
     AppTheme,
@@ -248,6 +249,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         avatars: normalizeAvatarSettings(source.avatars),
         forge: normalizeForgeSettings(source.forge),
         keybinds: normalizePersistedKeybinds(source.keybinds),
+        ui_zoom_percent: boundedNumber(source.ui_zoom_percent, DEFAULT_SETTINGS.ui_zoom_percent, MIN_ZOOM_PERCENT, MAX_ZOOM_PERCENT),
         active_theme_id: activeThemeId,
         themes,
     };

@@ -15,7 +15,7 @@ function ViewSwitchButton({ active, children, className = "", icon, onClick }: {
     <button
       aria-pressed={active}
       className={cx(
-        "inline-flex h-6.25 min-w-15.5 cursor-pointer items-center justify-center gap-1.25 bg-transparent px-2 text-[10px] font-[650]",
+        "inline-flex h-7.5 min-w-18 cursor-pointer items-center justify-center gap-1.5 bg-transparent px-2.5 text-[13px] font-[650]",
         active
           ? "bg-row-selected text-foreground shadow-[inset_0_-2px_0_var(--gc-accent)]"
           : "text-muted hover:bg-row-hover hover:text-foreground",
@@ -51,12 +51,12 @@ export function FileTreeControls({
         className="absolute left-2.75 grid size-6.25 place-items-center text-muted"
         title="Sorted A–Z"
       >
-        <ArrowDownAZ aria-hidden="true" size={15} />
+        <ArrowDownAZ aria-hidden="true" size={18} />
       </span>
       <div aria-label="File list layout" className="inline-flex border border-border bg-background" role="group">
         <ViewSwitchButton
           active={mode === "path"}
-          icon={<List aria-hidden="true" size={13} />}
+          icon={<List aria-hidden="true" size={16} />}
           onClick={() => onModeChange("path")}
         >
           Path
@@ -64,7 +64,7 @@ export function FileTreeControls({
         <ViewSwitchButton
           active={mode === "tree"}
           className="border-l border-border"
-          icon={<FolderTree aria-hidden="true" size={13} />}
+          icon={<FolderTree aria-hidden="true" size={16} />}
           onClick={() => onModeChange("tree")}
         >
           Tree

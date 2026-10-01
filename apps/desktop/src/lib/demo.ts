@@ -333,6 +333,7 @@ const defaultState = (): PersistedState => ({
     avatars: { enabled: true, gravatar_fallback: false },
     forge: { pull_requests: true, checks: true },
     keybinds: { ...DEFAULT_KEYBINDS },
+    ui_zoom_percent: 110,
     active_theme_id: DEFAULT_THEME_ID,
     themes: cloneDefaultThemes(),
   },

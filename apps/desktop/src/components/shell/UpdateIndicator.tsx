@@ -15,7 +15,7 @@ export function UpdateIndicator({ update }: { update: AppUpdateState }) {
           title={update.notes ?? `Download and install GitCat v${update.version}`}
           type="button"
         >
-          <Download size={12} /> Update to v{update.version}
+          <Download size={14} /> Update to v{update.version}
         </button>
       </StatusItem>
     );
@@ -24,7 +24,7 @@ export function UpdateIndicator({ update }: { update: AppUpdateState }) {
   if (update.status === "downloading" || update.status === "installing") {
     return (
       <StatusItem className="text-accent">
-        <RefreshCw className="animate-spin" size={12} />
+        <RefreshCw className="animate-spin" size={14} />
         {update.status === "installing" ? "Installing update" :
           update.progress === null ? "Downloading update" : `Downloading update ${update.progress}%`}
       </StatusItem>
@@ -34,7 +34,7 @@ export function UpdateIndicator({ update }: { update: AppUpdateState }) {
   if (update.status === "ready") {
     return (
       <StatusItem className="text-accent">
-        <RefreshCw size={12} /> Restarting to install
+        <RefreshCw size={14} /> Restarting to install
       </StatusItem>
     );
   }
@@ -48,7 +48,7 @@ export function UpdateIndicator({ update }: { update: AppUpdateState }) {
           title={update.error ?? "Update check failed"}
           type="button"
         >
-          <AlertTriangle size={12} /> Update failed
+          <AlertTriangle size={14} /> Update failed
         </button>
       </StatusItem>
     );

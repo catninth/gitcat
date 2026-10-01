@@ -68,6 +68,7 @@ import { usePanelLayout } from "./app/usePanelLayout";
 import { useRepositoryCommands } from "./app/useRepositoryCommands";
 import { useRepositoryOverview } from "./app/useRepositoryOverview";
 import { useRepositoryTabs } from "./app/useRepositoryTabs";
+import { useInterfaceZoom } from "./app/useInterfaceZoom";
 import { useToasts } from "./app/useToasts";
 import { useWorkspaceBootstrap } from "./app/useWorkspaceBootstrap";
 import { useWorktreeMutations } from "./app/useWorktreeMutations";
@@ -167,6 +168,16 @@ function App() {
     const setGraphColumnWidths = useCallback((widths: GraphColumnWidths) => {
         setPersisted((current) => ({ ...current, settings: { ...current.settings, graph_column_widths: widths } }));
     }, []);
+
+    const zoomPercent = persisted.settings.ui_zoom_percent;
+    const setZoomPercent = useCallback((percent: number) => {
+        setPersisted((current) => (
+            current.settings.ui_zoom_percent === percent
+                ? current
+                : { ...current, settings: { ...current.settings, ui_zoom_percent: percent } }
+        ));
+    }, []);
+    useInterfaceZoom(zoomPercent, setZoomPercent);
 
     const diffMode = persisted.settings.diff_view_mode;
     const setDiffMode = useCallback((mode: DiffViewMode) => {
@@ -1030,7 +1041,12 @@ function App() {
                 </>
             )}
 
-            <AppStatusBar appMetadata={appMetadata} appUpdate={appUpdate} />
+            <AppStatusBar
+                appMetadata={appMetadata}
+                appUpdate={appUpdate}
+                onZoomChange={setZoomPercent}
+                zoomPercent={zoomPercent}
+            />
 
             <AppDialogs
                 activeTab={activeTab}

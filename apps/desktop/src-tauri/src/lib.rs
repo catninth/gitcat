@@ -12,9 +12,9 @@ use gitcat_contracts::{
     ConflictLineEndingPolicy, ConflictPreflightResult, ConflictResolution, ContinueOperation,
     DeviceAuthorization, DiffRequest, ErrorCode, ExpectedState, FetchOptions, FileDiff,
     ForgeAccount, ForgeCredential, ForgeRepo, ForgeRepository, GitVersion, HistoryPage,
-    HistoryQuery, LinePatchRequest, LoginPoll, MutationResult, NewRepository, PersistedState,
-    PullOptions, PullRequestInfo, PushOptions, RepositoryId, RepositoryInfo, RepositorySnapshot,
-    ResetMode, StashEntry,
+    HistoryQuery, LinePatchRequest, LoginPoll, MAX_UI_ZOOM_PERCENT, MIN_UI_ZOOM_PERCENT,
+    MutationResult, NewRepository, PersistedState, PullOptions, PullRequestInfo, PushOptions,
+    RepositoryId, RepositoryInfo, RepositorySnapshot, ResetMode, StashEntry,
 };
 use gitcat_core::{CoreApi, JsonStateStore, export_settings, import_settings};
 use gitcat_forge::{AvatarService, ForgeAuth, ForgeService, TokenStore};
@@ -42,6 +42,31 @@ impl From<(RepositoryId, RepositoryInfo)> for OpenedRepository {
             info,
         }
     }
+}
+
+// WebView2 stops painting after a zoom change until its bounds change, which
+// left the window blank until the user resized it; nudging the bounds by one
+// pixel and back makes it lay out and paint again at the new factor.
+#[tauri::command]
+fn set_interface_zoom(webview: tauri::Webview, percent: u16) -> Result<(), String> {
+    let factor = f64::from(percent.clamp(MIN_UI_ZOOM_PERCENT, MAX_UI_ZOOM_PERCENT)) / 100.0;
+    webview
+        .set_zoom(factor)
+        .map_err(|error| error.to_string())?;
+    let bounds = webview.bounds().map_err(|error| error.to_string())?;
+    let scale = webview
+        .window()
+        .scale_factor()
+        .map_err(|error| error.to_string())?;
+    let size = bounds.size.to_physical::<u32>(scale);
+    let mut nudged = bounds;
+    nudged.size = tauri::PhysicalSize::new(size.width, size.height.saturating_sub(1)).into();
+    webview
+        .set_bounds(nudged)
+        .map_err(|error| error.to_string())?;
+    webview
+        .set_bounds(bounds)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -881,6 +906,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_metadata,
+            set_interface_zoom,
             updater::get_update_state,
             updater::check_update,
             updater::install_update,

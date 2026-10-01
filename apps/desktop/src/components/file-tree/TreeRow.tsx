@@ -45,7 +45,7 @@ export function TreeEntry({ className = "", depth, ...props }: ComponentPropsWit
   return (
     <button
       className={cx(
-        "flex min-h-7.25 min-w-0 cursor-pointer items-center gap-1.75 bg-transparent pl-[calc(7px+var(--gc-tree-depth)*15px)] pr-1.5 text-left text-[11px] font-medium leading-[1.35] text-muted hover:text-foreground",
+        "flex min-h-7.25 min-w-0 cursor-pointer items-center gap-1.75 bg-transparent pl-[calc(7px+var(--gc-tree-depth)*15px)] pr-1.5 text-left text-[14px] font-medium leading-[1.35] text-muted hover:text-foreground",
         className,
       )}
       style={treeIndent(depth)}

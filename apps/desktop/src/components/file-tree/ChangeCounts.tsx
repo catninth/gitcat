@@ -15,9 +15,11 @@ const CHANGE_COUNT_PARTS: readonly { kind: ChangeCountKind; icon: LucideIcon; to
   { kind: "renamed", icon: FilePen, tone: "text-accent", label: "renamed" },
 ];
 
+// Sized against GitKraken at 100%: the count reads as large as the file name
+// beside it, not as a footnote to it.
 const SIZES = {
-  sm: { text: "text-[9px]", icon: 10 },
-  md: { text: "text-[10px]", icon: 11 },
+  sm: { text: "text-[13px]", icon: 14 },
+  md: { text: "text-[12px]", icon: 13 },
 } as const;
 
 export function ChangeCount({ icon: Icon, size = "sm", tone, children }: {
@@ -28,7 +30,7 @@ export function ChangeCount({ icon: Icon, size = "sm", tone, children }: {
 }) {
   const { text, icon } = SIZES[size];
   return (
-    <span className={cx("flex shrink-0 items-center gap-px font-mono leading-none text-foreground", text)}>
+    <span className={cx("flex shrink-0 items-center gap-1 font-semibold leading-none tabular-nums text-foreground", text)}>
       <Icon aria-hidden="true" className={cx("shrink-0", tone)} size={icon} strokeWidth={3} />
       {children}
     </span>

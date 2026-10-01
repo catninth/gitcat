@@ -4,7 +4,10 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use gitcat_contracts::{ApiError, ApiResult, AppSettings, ErrorCode, PersistedState, ThemeColors};
+use gitcat_contracts::{
+    ApiError, ApiResult, AppSettings, ErrorCode, MAX_UI_ZOOM_PERCENT, MIN_UI_ZOOM_PERCENT,
+    PersistedState, ThemeColors,
+};
 use uuid::Uuid;
 
 const MAX_AUTO_FETCH_INTERVAL_MINUTES: u16 = 60;
@@ -200,6 +203,11 @@ pub fn validate_settings(settings: &AppSettings) -> ApiResult<()> {
     if !(1..=MAX_HISTORY_PAGE_SIZE).contains(&settings.history_page_size) {
         return Err(invalid_settings(
             "history page size must be between 1 and 500",
+        ));
+    }
+    if !(MIN_UI_ZOOM_PERCENT..=MAX_UI_ZOOM_PERCENT).contains(&settings.ui_zoom_percent) {
+        return Err(invalid_settings(
+            "interface zoom must be between 80 and 300 percent",
         ));
     }
     if settings.diff_context_lines > MAX_DIFF_CONTEXT_LINES {
@@ -533,6 +541,15 @@ mod tests {
         );
 
         settings.history_page_size = AppSettings::default().history_page_size;
+        for zoom in [MIN_UI_ZOOM_PERCENT - 1, MAX_UI_ZOOM_PERCENT + 1] {
+            settings.ui_zoom_percent = zoom;
+            assert_eq!(
+                validate_settings(&settings).unwrap_err().code,
+                ErrorCode::InvalidSettings
+            );
+        }
+
+        settings.ui_zoom_percent = AppSettings::default().ui_zoom_percent;
         settings.diff_max_bytes = 0;
         assert_eq!(
             validate_settings(&settings).unwrap_err().code,

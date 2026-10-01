@@ -19,7 +19,7 @@ export function BulkButton({ busy, label, priority, tone, onClick }: {
   return (
     <button
       className={cx(
-        "cursor-pointer whitespace-nowrap rounded border px-2 py-1 text-[10px] font-[650] text-white disabled:cursor-default disabled:opacity-100",
+        "cursor-pointer whitespace-nowrap rounded border px-2 py-1 text-[12px] font-[650] text-white disabled:cursor-default disabled:opacity-100",
         tone ? TONE[tone] : priority ? cx(TONE.remove, "font-bold") : TONE.add,
       )}
       disabled={busy}
@@ -42,7 +42,7 @@ export function StageButton({ busy, path, plus, onClick }: {
     <button
       aria-label={`${plus ? "Stage" : "Unstage"} ${path}`}
       className={cx(
-        "min-w-21.5 cursor-pointer whitespace-nowrap rounded border px-2 py-0.75 text-[11px] font-semibold leading-[1.35] text-white shadow-[0_2px_9px_color-mix(in_srgb,black_42%,transparent)] disabled:cursor-default disabled:opacity-100",
+        "min-w-21.5 cursor-pointer whitespace-nowrap rounded border px-2.5 py-1 text-[13px] font-semibold leading-[1.35] text-white shadow-[0_2px_9px_color-mix(in_srgb,black_42%,transparent)] disabled:cursor-default disabled:opacity-100",
         plus ? TONE.add : TONE.remove,
       )}
       disabled={busy}

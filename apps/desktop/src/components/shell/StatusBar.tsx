@@ -4,14 +4,14 @@ import { cx } from "../../lib";
 
 export function StatusBar({ children }: { children: ReactNode }) {
   return (
-    <footer className="flex h-6.25 flex-[0_0_25px] items-center gap-3.75 border-t border-border bg-[color-mix(in_srgb,var(--gc-surface)_95%,black)] px-2.5 font-mono text-[9px] text-muted">
+    <footer className="flex h-7.5 flex-[0_0_30px] items-center gap-4 border-t border-border bg-[color-mix(in_srgb,var(--gc-surface)_95%,black)] px-3 font-mono text-[11px] text-muted">
       {children}
     </footer>
   );
 }
 
 export function StatusItem({ className = "", children }: { className?: string; children: ReactNode }) {
-  return <span className={cx("inline-flex items-center gap-1 whitespace-nowrap", className)}>{children}</span>;
+  return <span className={cx("inline-flex items-center gap-1.25 whitespace-nowrap", className)}>{children}</span>;
 }
 
 export function StatusSpacer() {
