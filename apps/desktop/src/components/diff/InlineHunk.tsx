@@ -2,12 +2,15 @@ import { memo } from "react";
 
 import type { DiffHunk } from "../../lib/types";
 import { HunkHeader, HunkSection, LineContent, displayLineNumber } from "./DiffParts";
+import { LineGutterAction, lineMenuHandler, useLineActions } from "./lineActions";
 
 export const InlineHunk = memo(function InlineHunk({ hunk, index, showHeader = true }: {
   hunk: DiffHunk;
   index: number;
   showHeader?: boolean;
 }) {
+  const actions = useLineActions();
+
   return (
     <HunkSection
       fallbackLabel="Whole file, unified"
@@ -38,8 +41,13 @@ export const InlineHunk = memo(function InlineHunk({ hunk, index, showHeader = t
             }
 
             return (
-              <tr className={`gc-diff-line gc-diff-line--${line.kind}`} key={`${lineIndex}:${line.old_line ?? ""}:${line.new_line ?? ""}`}>
+              <tr
+                className={`gc-diff-line gc-diff-line--${line.kind}`}
+                key={`${lineIndex}:${line.old_line ?? ""}:${line.new_line ?? ""}`}
+                onContextMenu={lineMenuHandler(actions, line)}
+              >
                 <td aria-label={line.old_line === null ? undefined : `Old line ${line.old_line}`} className="gc-diff-line__number gc-diff-line__number--old">
+                  <LineGutterAction line={line} />
                   {displayLineNumber(line.old_line)}
                 </td>
                 <td aria-label={line.new_line === null ? undefined : `New line ${line.new_line}`} className="gc-diff-line__number gc-diff-line__number--new">

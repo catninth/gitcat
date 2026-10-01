@@ -10,7 +10,7 @@ import {
 import { GraphColumnResizer } from "../components/GraphColumnResizer";
 import { GraphConflictNotice } from "../components/GraphConflictNotice";
 import { MergeEditor } from "../components/conflict";
-import { DiffViewer, type DiffViewMode } from "../components/diff";
+import { DiffViewer, type DiffLineActions, type DiffViewMode } from "../components/diff";
 import { ChangeCountSummary, type FileChangeCounts } from "../components/file-tree";
 import { GraphColumnMenu } from "../components/GraphColumnMenu";
 import { InitialCommitPrompt } from "../components/InitialCommitPrompt";
@@ -61,6 +61,7 @@ export interface HistoryPaneProps {
     createInitialCommit: () => void;
     currentHeadOid: string | null;
     diff: FileDiff | null;
+    diffLineActions: DiffLineActions | null;
     diffLoading: boolean;
     diffMode: DiffViewMode;
     focusWorktree: () => void;
@@ -120,6 +121,7 @@ export function HistoryPane({
     createInitialCommit,
     currentHeadOid,
     diff,
+    diffLineActions,
     diffLoading,
     diffMode,
     focusWorktree,
@@ -258,6 +260,7 @@ export function HistoryPane({
                 <DiffViewer
                     closeKeybind={settings.keybinds.show_graph}
                     diff={diff}
+                    lineActions={diffLineActions}
                     loading={diffLoading}
                     mode={diffMode}
                     onClose={closeDiff}

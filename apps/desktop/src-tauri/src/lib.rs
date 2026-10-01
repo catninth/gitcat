@@ -12,9 +12,9 @@ use gitcat_contracts::{
     ConflictLineEndingPolicy, ConflictPreflightResult, ConflictResolution, ContinueOperation,
     DeviceAuthorization, DiffRequest, ErrorCode, ExpectedState, FetchOptions, FileDiff,
     ForgeAccount, ForgeCredential, ForgeRepo, ForgeRepository, GitVersion, HistoryPage,
-    HistoryQuery, LoginPoll, MutationResult, NewRepository, PersistedState, PullOptions,
-    PullRequestInfo, PushOptions, RepositoryId, RepositoryInfo, RepositorySnapshot, ResetMode,
-    StashEntry,
+    HistoryQuery, LinePatchRequest, LoginPoll, MutationResult, NewRepository, PersistedState,
+    PullOptions, PullRequestInfo, PushOptions, RepositoryId, RepositoryInfo, RepositorySnapshot,
+    ResetMode, StashEntry,
 };
 use gitcat_core::{CoreApi, JsonStateStore, export_settings, import_settings};
 use gitcat_forge::{AvatarService, ForgeAuth, ForgeService, TokenStore};
@@ -288,6 +288,15 @@ async fn paths_discard(
     paths: Vec<String>,
 ) -> ApiResult<MutationResult> {
     core.discard(&repository_id, &paths).await
+}
+
+#[tauri::command]
+async fn diff_lines_apply(
+    core: State<'_, Arc<CoreApi>>,
+    repository_id: RepositoryId,
+    request: LinePatchRequest,
+) -> ApiResult<MutationResult> {
+    core.apply_diff_lines(&repository_id, &request).await
 }
 
 #[tauri::command]
@@ -894,6 +903,7 @@ pub fn run() {
             paths_stage,
             paths_unstage,
             paths_discard,
+            diff_lines_apply,
             path_stash,
             gitignore_append,
             file_patch_save,

@@ -106,7 +106,7 @@ export function useDiffPane({
         if (open.sequence !== diffLoadSequence.current) return;
         const target = open.request.target.kind;
         if (target !== "worktree" && target !== "staged") return;
-        void loadDiff(open.request, true);
+        return loadDiff(open.request, true);
     }, [activeRepository, diffLoading, loadDiff]);
 
     useEffect(() => {

@@ -446,6 +446,14 @@ export interface DiffHunk {
   lines: DiffLine[];
 }
 
+export type LinePatchAction = "stage" | "unstage" | "discard";
+
+export interface LinePatchRequest {
+  path: string;
+  action: LinePatchAction;
+  lines: DiffLine[];
+}
+
 export interface FileDiff {
   old_path: string | null;
   new_path: string;

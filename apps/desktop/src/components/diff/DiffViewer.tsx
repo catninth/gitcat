@@ -1,15 +1,19 @@
-import { X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Copy, Minus, Plus, Undo2, X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 
 import { cx } from "../../lib";
-import type { FileDiff } from "../../lib/types";
+import type { DiffLine, FileDiff } from "../../lib/types";
+import { ContextMenu } from "../ContextMenu";
+import type { ContextAction } from "../ContextMenu";
 import { IconButton } from "../ui";
 import { DiffMinimap } from "./DiffMinimap";
 import { ChangeKind, DIFF_VIEW_MODES, DiffState, ModeButton, isWholeFileMode } from "./DiffParts";
 import type { DiffViewMode } from "./DiffParts";
 import { HighlightContext, useDiffHighlight } from "./highlight";
 import { InlineHunk } from "./InlineHunk";
+import { LineActionsContext, isChangedLine } from "./lineActions";
+import type { DiffLineActions } from "./lineActions";
 import { SplitPanes } from "./SplitPanes";
 import { buildDiffMap, maxLineWidth } from "./rows";
 
@@ -22,6 +26,32 @@ export interface DiffViewerProps {
   closeKeybind?: string;
   onClose?: () => void;
   onModeChange?: (mode: DiffViewMode) => void;
+  /** Present only for a worktree diff, whose lines can be staged and discarded. */
+  lineActions?: DiffLineActions | null;
+}
+
+interface LineMenu {
+  x: number;
+  y: number;
+  line: DiffLine;
+  // Taken when the menu opens: clicking an item would otherwise clear it.
+  selection: string;
+}
+
+function lineMenuActions(line: DiffLine, actions: DiffLineActions | null | undefined): ContextAction[] {
+  const items: ContextAction[] = [];
+  if (actions && isChangedLine(line)) {
+    if (actions.side === "unstaged") {
+      items.push(
+        { id: "discard", label: "Discard this line", icon: <Undo2 size={14} />, danger: true, disabled: actions.busy },
+        { id: "stage", label: "Stage this line", icon: <Plus size={14} />, disabled: actions.busy },
+      );
+    } else {
+      items.push({ id: "unstage", label: "Unstage this line", icon: <Minus size={14} />, disabled: actions.busy });
+    }
+  }
+  items.push({ id: "copy", label: "Copy", icon: <Copy size={14} />, separatorBefore: items.length > 0 });
+  return items;
 }
 
 export function DiffViewer({
@@ -33,8 +63,10 @@ export function DiffViewer({
   closeKeybind,
   onClose,
   onModeChange,
+  lineActions,
 }: DiffViewerProps) {
   const [internalMode, setInternalMode] = useState<DiffViewMode>(defaultMode);
+  const [lineMenu, setLineMenu] = useState<LineMenu | null>(null);
   const mode = controlledMode ?? internalMode;
   const scrollRef = useRef<HTMLDivElement>(null);
   const diffMap = useMemo(
@@ -43,6 +75,32 @@ export function DiffViewer({
   );
   const contentColumns = useMemo(() => maxLineWidth(diff?.hunks ?? []), [diff]);
   const highlight = useDiffHighlight(diff);
+
+  const openLineMenu = useCallback((event: ReactMouseEvent, line: DiffLine) => {
+    event.preventDefault();
+    setLineMenu({
+      x: event.clientX,
+      y: event.clientY,
+      line,
+      selection: window.getSelection()?.toString() ?? "",
+    });
+  }, []);
+
+  const lineActionsContext = useMemo(
+    () => ({ actions: lineActions ?? null, openMenu: openLineMenu }),
+    [lineActions, openLineMenu],
+  );
+
+  const runLineMenuAction = (id: string) => {
+    const menu = lineMenu;
+    setLineMenu(null);
+    if (!menu) return;
+    if (id === "copy") {
+      void navigator.clipboard?.writeText(menu.selection || menu.line.content);
+    } else if (id === "stage" || id === "unstage" || id === "discard") {
+      lineActions?.onApply(id, [menu.line]);
+    }
+  };
 
   const setMode = (nextMode: DiffViewMode) => {
     if (nextMode === mode) return;
@@ -140,6 +198,7 @@ export function DiffViewer({
         <DiffState>No text changes to display.</DiffState>
       ) : (
         <HighlightContext.Provider value={highlight}>
+          <LineActionsContext.Provider value={lineActionsContext}>
           <div className="flex min-h-0 min-w-0 flex-1">
             {mode === "split" ? (
               <SplitPanes
@@ -162,8 +221,18 @@ export function DiffViewer({
             )}
             {showMinimap ? <DiffMinimap map={diffMap} scrollRef={scrollRef} /> : null}
           </div>
+          </LineActionsContext.Provider>
         </HighlightContext.Provider>
       )}
+      {lineMenu ? (
+        <ContextMenu
+          actions={lineMenuActions(lineMenu.line, lineActions)}
+          onAction={runLineMenuAction}
+          onClose={() => setLineMenu(null)}
+          x={lineMenu.x}
+          y={lineMenu.y}
+        />
+      ) : null}
     </section>
   );
 }

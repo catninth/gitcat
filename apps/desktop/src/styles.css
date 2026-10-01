@@ -748,6 +748,28 @@
   color: color-mix(in srgb, var(--gc-muted) 62%, transparent);
 }
 
+.gc-diff-line__number--old,
+.gc-diff-table--side .gc-diff-line__number {
+  @apply relative;
+}
+
+/* Stage/unstage one line: hidden until its row is hovered. */
+.gc-diff-line__action {
+  @apply absolute left-[3px] top-[3px] hidden h-[14px] w-[14px] cursor-pointer place-items-center rounded-[3px] border-0 p-0 leading-none text-white;
+}
+
+.gc-diff-line__action svg { @apply block shrink-0; }
+
+.gc-diff-line__action--stage { background: var(--gc-success); }
+.gc-diff-line__action--unstage { background: var(--gc-danger); }
+.gc-diff-line__action:hover { filter: brightness(1.15); }
+.gc-diff-line__action:disabled { @apply cursor-default opacity-50; }
+
+.gc-diff-line:hover .gc-diff-line__action,
+.gc-diff-line__action:focus-visible {
+  @apply flex items-center justify-center;
+}
+
 .gc-diff-line__content {
   @apply relative min-w-0 whitespace-pre;
   padding: 1px 10px 1px 7px !important;

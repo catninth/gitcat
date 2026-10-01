@@ -29,6 +29,7 @@ import type {
   HistoryPage,
   HistoryQuery,
   Identity,
+  LinePatchRequest,
   MutationResult,
   OpenedRepository,
   PersistedState,
@@ -696,6 +697,13 @@ class DemoGitCatApi implements GitCatApi {
     this.snapshotValue.status.entries = this.snapshotValue.status.entries.filter(
       (candidate) => !targets.has(candidate.path),
     );
+    return this.mutation();
+  }
+
+  // The demo keeps no file contents, so a line-level change only refreshes.
+  async applyDiffLines(repositoryId: RepositoryId, _request: LinePatchRequest): Promise<MutationResult> {
+    await delay();
+    this.ensureRepository(repositoryId);
     return this.mutation();
   }
 

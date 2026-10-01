@@ -44,6 +44,11 @@ pub trait GitBackend: Send + Sync {
     async fn stage_paths(&self, path: &Path, paths: &[String]) -> ApiResult<MutationResult>;
     async fn unstage_paths(&self, path: &Path, paths: &[String]) -> ApiResult<MutationResult>;
     async fn discard_paths(&self, path: &Path, paths: &[String]) -> ApiResult<MutationResult>;
+    async fn apply_diff_lines(
+        &self,
+        path: &Path,
+        request: &LinePatchRequest,
+    ) -> ApiResult<MutationResult>;
     async fn stash_paths(
         &self,
         path: &Path,

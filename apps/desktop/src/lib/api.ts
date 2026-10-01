@@ -20,6 +20,7 @@ import type {
   ExpectedState,
   FetchOptions,
   FileDiff,
+  LinePatchRequest,
   GitVersion,
   HistoryPage,
   HistoryQuery,
@@ -72,6 +73,7 @@ export interface GitCatCommands {
   stagePaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
   unstagePaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
   discardPaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
+  applyDiffLines(repositoryId: RepositoryId, request: LinePatchRequest): Promise<MutationResult>;
   stashFile(
     repositoryId: RepositoryId,
     paths: string[],
@@ -282,6 +284,8 @@ export function createTauriGitCatApi(): GitCatApi {
       invokeTauri("paths_unstage", { repositoryId, paths }),
     discardPaths: (repositoryId, paths) =>
       invokeTauri("paths_discard", { repositoryId, paths }),
+    applyDiffLines: (repositoryId, request) =>
+      invokeTauri("diff_lines_apply", { repositoryId, request }),
     stashFile: (repositoryId, paths, message) =>
       invokeTauri("path_stash", { repositoryId, paths, message }),
     appendGitignore: (repositoryId, patterns) =>

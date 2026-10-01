@@ -60,6 +60,7 @@ import { useConflictActions } from "./app/useConflictActions";
 import { useConflictPreflight } from "./app/useConflictPreflight";
 import { useContextMenuActions } from "./app/useContextMenuActions";
 import { useDialogActions } from "./app/useDialogActions";
+import { useDiffLineActions } from "./app/useDiffLineActions";
 import { useDiffPane } from "./app/useDiffPane";
 import { useGlobalKeybinds } from "./app/useGlobalKeybinds";
 import { useLaunchRepository } from "./app/useLaunchRepository";
@@ -338,6 +339,14 @@ function App() {
         showError,
         snapshot,
         swapWorktreeDiffSideRef,
+    });
+
+    const diffLineActions = useDiffLineActions({
+        diff,
+        reloadOpenWorktreeDiff,
+        runMutation,
+        selectedWorktreeFile,
+        snapshot,
     });
 
     const {
@@ -922,6 +931,7 @@ function App() {
                             createInitialCommit={createInitialCommit}
                             currentHeadOid={currentHeadOid}
                             diff={diff}
+                            diffLineActions={diffLineActions}
                             diffLoading={diffLoading}
                             diffMode={diffMode}
                             focusWorktree={focusWorktree}

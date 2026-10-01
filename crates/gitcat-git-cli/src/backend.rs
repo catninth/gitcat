@@ -23,6 +23,7 @@ use crate::{
     },
     credentials::{GitCredentialSource, HostCredential},
     limits::*,
+    line_patch::{PatchDirection, build_line_patch},
     operation::ensure_operation,
     parse::{
         DETAIL_FORMAT, LOG_FORMAT, ParsedStatus, REF_FORMAT, STASH_GRAPH_FORMAT, StashCommit,
@@ -178,6 +179,108 @@ impl GitCliBackend {
             return Err(self.runner.failure_error(&output));
         }
         parse_file_diff(&output.stdout, &request.path, output.stdout_truncated)
+    }
+
+    async fn seed_empty_index_entry(&self, path: &Path, relative: &str) -> ApiResult<()> {
+        let blob = self
+            .runner
+            .run(
+                Some(path),
+                &os_args(&["hash-object", "-w", "--stdin"]),
+                Some(&[]),
+                CancellationToken::new(),
+                GitRunOptions::mutation(READ_OUTPUT_CAP),
+            )
+            .await?
+            .stdout_lossy()
+            .trim()
+            .to_owned();
+        self.runner
+            .run(
+                Some(path),
+                &[
+                    "update-index".into(),
+                    "--add".into(),
+                    "--cacheinfo".into(),
+                    format!("100644,{blob},{relative}").into(),
+                ],
+                None,
+                CancellationToken::new(),
+                GitRunOptions::mutation(READ_OUTPUT_CAP),
+            )
+            .await?;
+        Ok(())
+    }
+
+    // `untracked` reads the file against nothing, which only a discard needs:
+    // staging seeds the index first and then has an ordinary diff to read.
+    async fn apply_diff_lines_inner(
+        &self,
+        path: &Path,
+        request: &LinePatchRequest,
+        untracked: bool,
+    ) -> ApiResult<()> {
+        let mut args = if untracked {
+            os_args(&["diff", "--no-index"])
+        } else if request.action == LinePatchAction::Unstage {
+            os_args(&["diff", "--cached"])
+        } else {
+            os_args(&["diff"])
+        };
+        args.extend(os_args(&[
+            "--patch",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-color",
+            "--no-renames",
+            "--unified=3",
+            "--",
+        ]));
+        if untracked {
+            args.push("/dev/null".into());
+        }
+        args.push(request.path.as_str().into());
+        let mut options = GitRunOptions::read_only(MAX_DIFF_BYTES);
+        options.allow_failure = untracked;
+        options.timeout = Some(Duration::from_secs(60));
+        let output = self
+            .runner
+            .run(Some(path), &args, None, CancellationToken::new(), options)
+            .await?;
+        if untracked && !matches!(output.status.code(), Some(0 | 1)) {
+            return Err(self.runner.failure_error(&output));
+        }
+
+        let direction = if request.action == LinePatchAction::Stage {
+            PatchDirection::Forward
+        } else {
+            PatchDirection::Reverse
+        };
+        let patch = build_line_patch(&output.stdout, &request.path, &request.lines, direction)?;
+        // A file Git has never stored has no line endings of its own to
+        // restore, so it keeps the ones it was written with.
+        let mut apply = if untracked {
+            os_args(&["-c", "core.autocrlf=false", "apply", "--whitespace=nowarn"])
+        } else {
+            os_args(&["apply", "--whitespace=nowarn"])
+        };
+        if request.action != LinePatchAction::Discard {
+            apply.push("--cached".into());
+        }
+        if direction == PatchDirection::Reverse {
+            apply.push("--reverse".into());
+        }
+        apply.push("-".into());
+        self.runner
+            .run(
+                Some(path),
+                &apply,
+                Some(&patch),
+                CancellationToken::new(),
+                GitRunOptions::mutation(READ_OUTPUT_CAP),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn inspect_repository(&self, path: &Path) -> ApiResult<RepositoryInfo> {
@@ -2107,6 +2210,47 @@ impl GitBackend for GitCliBackend {
             }
         }
 
+        self.mutation_result(path, before).await
+    }
+
+    async fn apply_diff_lines(
+        &self,
+        path: &Path,
+        request: &LinePatchRequest,
+    ) -> ApiResult<MutationResult> {
+        validate_relative_path(&request.path)?;
+        let before = self.head_oid(path).await?;
+        if request.lines.is_empty() {
+            return self.mutation_result(path, before).await;
+        }
+        let untracked = request.action != LinePatchAction::Unstage
+            && self.is_untracked_file(path, &request.path).await?;
+        // Staging part of a new file needs something in the index to patch.
+        // An empty blob is that; an intent-to-add entry is not, because
+        // `git apply --cached` treats one as absent.
+        let seeded = untracked && request.action == LinePatchAction::Stage;
+        if seeded {
+            self.seed_empty_index_entry(path, &request.path).await?;
+        }
+        let result = self
+            .apply_diff_lines_inner(path, request, untracked && !seeded)
+            .await;
+        if result.is_err() && seeded {
+            let _ = self
+                .read_allow_failure(
+                    Some(path),
+                    vec![
+                        "rm".into(),
+                        "--cached".into(),
+                        "--quiet".into(),
+                        "--force".into(),
+                        "--".into(),
+                        request.path.as_str().into(),
+                    ],
+                )
+                .await;
+        }
+        result?;
         self.mutation_result(path, before).await
     }
 

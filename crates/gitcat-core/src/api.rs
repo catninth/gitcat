@@ -244,6 +244,17 @@ impl CoreApi {
         .await
     }
 
+    pub async fn apply_diff_lines(
+        &self,
+        repository_id: &RepositoryId,
+        request: &LinePatchRequest,
+    ) -> ApiResult<MutationResult> {
+        self.mutate(repository_id, |backend, path| async move {
+            backend.apply_diff_lines(&path, request).await
+        })
+        .await
+    }
+
     pub async fn stash_file(
         &self,
         repository_id: &RepositoryId,
@@ -1117,6 +1128,14 @@ mod tests {
 
         async fn discard_paths(&self, path: &Path, _paths: &[String]) -> ApiResult<MutationResult> {
             self.mutation("discard_paths", path).await
+        }
+
+        async fn apply_diff_lines(
+            &self,
+            path: &Path,
+            _request: &LinePatchRequest,
+        ) -> ApiResult<MutationResult> {
+            self.mutation("apply_diff_lines", path).await
         }
 
         async fn stash_paths(

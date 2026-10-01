@@ -491,6 +491,27 @@ pub struct DiffHunk {
     pub lines: Vec<DiffLine>,
 }
 
+/// What happens to the chosen lines of a worktree diff. `Stage` and `Discard`
+/// read the unstaged diff, `Unstage` the staged one -- each acts on the side
+/// the lines were picked from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinePatchAction {
+    Stage,
+    Unstage,
+    Discard,
+}
+
+/// Changed lines as the diff pane showed them. The backend re-reads the diff
+/// and refuses when a line no longer matches, so a stale pane cannot move the
+/// wrong text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinePatchRequest {
+    pub path: String,
+    pub action: LinePatchAction,
+    pub lines: Vec<DiffLine>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileDiff {
     pub old_path: Option<String>,

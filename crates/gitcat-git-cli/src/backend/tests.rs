@@ -3659,3 +3659,189 @@ async fn an_unreachable_remote_never_asks_for_a_renewal() {
 
     assert_eq!(*credentials.renewals.lock().expect("count renewals"), 0);
 }
+
+fn worktree_diff_request(path: &str, target: DiffTarget) -> DiffRequest {
+    DiffRequest {
+        target,
+        path: path.into(),
+        context_lines: 3,
+        ignore_whitespace: false,
+        max_bytes: 1 << 20,
+        whole_file: false,
+    }
+}
+
+fn changed_lines(diff: &FileDiff, wanted: &[&str]) -> Vec<DiffLine> {
+    diff.hunks
+        .iter()
+        .flat_map(|hunk| hunk.lines.iter())
+        .filter(|line| {
+            matches!(line.kind, DiffLineKind::Addition | DiffLineKind::Deletion)
+                && wanted.contains(&line.content.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+#[tokio::test]
+async fn single_lines_stage_unstage_and_discard() {
+    let (directory, backend, _) = committed_repository().await;
+    let root = directory.path();
+    git(root, &["config", "core.autocrlf", "false"]);
+    fs::write(root.join("lines.txt"), "a\nb\nc\nd\n").expect("write base");
+    backend
+        .stage_paths(root, &["lines.txt".into()])
+        .await
+        .expect("stage base");
+    backend
+        .create_commit(
+            root,
+            &CommitOptions {
+                message: "lines".into(),
+                amend: false,
+                signoff: false,
+            },
+        )
+        .await
+        .expect("commit base");
+    fs::write(root.join("lines.txt"), "a\nB\nc\nD\ne\n").expect("edit");
+
+    let unstaged = backend
+        .diff(
+            root,
+            &worktree_diff_request("lines.txt", DiffTarget::Worktree),
+        )
+        .await
+        .expect("worktree diff");
+    backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "lines.txt".into(),
+                action: LinePatchAction::Stage,
+                lines: changed_lines(&unstaged, &["b", "B"]),
+            },
+        )
+        .await
+        .expect("stage one change");
+    assert_eq!(git_stdout(root, &["show", ":lines.txt"]), "a\nB\nc\nd");
+
+    let staged = backend
+        .diff(
+            root,
+            &worktree_diff_request("lines.txt", DiffTarget::Staged),
+        )
+        .await
+        .expect("staged diff");
+    backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "lines.txt".into(),
+                action: LinePatchAction::Unstage,
+                lines: changed_lines(&staged, &["b"]),
+            },
+        )
+        .await
+        .expect("unstage the deletion only");
+    assert_eq!(git_stdout(root, &["show", ":lines.txt"]), "a\nb\nB\nc\nd");
+
+    let unstaged = backend
+        .diff(
+            root,
+            &worktree_diff_request("lines.txt", DiffTarget::Worktree),
+        )
+        .await
+        .expect("worktree diff again");
+    backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "lines.txt".into(),
+                action: LinePatchAction::Discard,
+                lines: changed_lines(&unstaged, &["e"]),
+            },
+        )
+        .await
+        .expect("discard the appended line");
+    assert_eq!(
+        fs::read_to_string(root.join("lines.txt")).expect("read worktree"),
+        "a\nB\nc\nD\n"
+    );
+    assert_eq!(git_stdout(root, &["show", ":lines.txt"]), "a\nb\nB\nc\nd");
+}
+
+#[tokio::test]
+async fn single_lines_of_an_untracked_file_stage_and_discard() {
+    let (directory, backend, _) = committed_repository().await;
+    let root = directory.path();
+    fs::write(root.join("new.txt"), "one\ntwo\nthree\n").expect("write untracked");
+
+    let diff = backend
+        .diff(
+            root,
+            &worktree_diff_request("new.txt", DiffTarget::Worktree),
+        )
+        .await
+        .expect("untracked diff");
+    backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "new.txt".into(),
+                action: LinePatchAction::Discard,
+                lines: changed_lines(&diff, &["two"]),
+            },
+        )
+        .await
+        .expect("discard from untracked");
+    assert_eq!(
+        fs::read_to_string(root.join("new.txt")).expect("read worktree"),
+        "one\nthree\n"
+    );
+
+    let diff = backend
+        .diff(
+            root,
+            &worktree_diff_request("new.txt", DiffTarget::Worktree),
+        )
+        .await
+        .expect("untracked diff again");
+    backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "new.txt".into(),
+                action: LinePatchAction::Stage,
+                lines: changed_lines(&diff, &["three"]),
+            },
+        )
+        .await
+        .expect("stage from untracked");
+    assert_eq!(git_stdout(root, &["show", ":new.txt"]), "three");
+}
+
+#[tokio::test]
+async fn a_stale_line_is_refused_and_leaves_an_untracked_file_untracked() {
+    let (directory, backend, _) = committed_repository().await;
+    let root = directory.path();
+    fs::write(root.join("new.txt"), "one\n").expect("write untracked");
+    let error = backend
+        .apply_diff_lines(
+            root,
+            &LinePatchRequest {
+                path: "new.txt".into(),
+                action: LinePatchAction::Stage,
+                lines: vec![DiffLine {
+                    kind: DiffLineKind::Addition,
+                    old_line: None,
+                    new_line: Some(1),
+                    content: "something else".into(),
+                }],
+            },
+        )
+        .await
+        .expect_err("stale line");
+    assert_eq!(error.code, ErrorCode::StaleSnapshot);
+    assert_eq!(git_stdout(root, &["ls-files", "--", "new.txt"]), "");
+}

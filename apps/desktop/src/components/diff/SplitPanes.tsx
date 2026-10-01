@@ -4,6 +4,7 @@ import type { CSSProperties, RefObject } from "react";
 import { cx } from "../../lib";
 import type { DiffHunk } from "../../lib/types";
 import { HunkHeader, HunkSection, LineContent, displayLineNumber } from "./DiffParts";
+import { LineGutterAction, lineMenuHandler, useLineActions } from "./lineActions";
 import { toSplitRows } from "./rows";
 import type { SplitRow } from "./rows";
 
@@ -18,6 +19,7 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
   showHeader: boolean;
   side: Side;
 }) {
+  const actions = useLineActions();
   const start = side === "old" ? hunk.old_start : hunk.new_start;
   const count = side === "old" ? hunk.old_count : hunk.new_count;
 
@@ -57,11 +59,16 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
             const kindClass = line ? ` gc-diff-line__content--${line.kind}` : " gc-diff-line__content--empty";
 
             return (
-              <tr className={`gc-diff-line gc-diff-line--${rowKind}`} key={`line:${rowIndex}`}>
+              <tr
+                className={`gc-diff-line gc-diff-line--${rowKind}`}
+                key={`line:${rowIndex}`}
+                onContextMenu={lineMenuHandler(actions, line)}
+              >
                 <td
                   aria-label={number == null ? undefined : `${SIDE_LABEL[side]} line ${number}`}
                   className={`gc-diff-line__number gc-diff-line__number--${side}`}
                 >
+                  <LineGutterAction line={line} />
                   {displayLineNumber(number ?? null)}
                 </td>
                 <td className={`gc-diff-line__content gc-diff-line__content--${side}${kindClass}`}>
