@@ -1171,6 +1171,18 @@ impl GitCliBackend {
         }
     }
 
+    /// The revisions the all-refs graph walks. Only the namespaces the graph
+    /// decorates are named: `--all` would also walk refs other tools park
+    /// under their own prefixes, and one of those pointing at a pruned object
+    /// fails the whole walk with "bad object". Stashes are added separately.
+    async fn all_refs_revisions(&self, path: &Path) -> ApiResult<Vec<OsString>> {
+        let mut revisions = os_args(&["--branches", "--remotes", "--tags"]);
+        if self.head_oid(path).await?.is_some() {
+            revisions.push("HEAD".into());
+        }
+        Ok(revisions)
+    }
+
     async fn visible_history_revision(
         &self,
         path: &Path,
@@ -1194,7 +1206,7 @@ impl GitCliBackend {
     ) -> ApiResult<SearchInputs> {
         match scope {
             HistoryScope::AllRefs => Ok(SearchInputs {
-                normal_revisions: os_args(&["--exclude=refs/stash", "--all"]),
+                normal_revisions: self.all_refs_revisions(path).await?,
                 virtual_stashes: stashes
                     .commits
                     .iter()
@@ -1554,7 +1566,7 @@ impl GitBackend for GitCliBackend {
         args.push(format!("--skip={offset}").into());
         args.push(format!("--max-count={}", limit + 1).into());
         if matches!(query.scope, HistoryScope::AllRefs) {
-            args.extend(os_args(&["--exclude=refs/stash", "--all"]));
+            args.extend(self.all_refs_revisions(path).await?);
             let mut stash_tips: Vec<&String> = stashes.commits.keys().collect();
             stash_tips.sort_unstable();
             args.extend(stash_tips.into_iter().map(OsString::from));

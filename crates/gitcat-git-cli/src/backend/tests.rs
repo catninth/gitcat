@@ -637,6 +637,51 @@ async fn repository_read_workflow_uses_machine_formats() {
 }
 
 #[tokio::test]
+async fn all_refs_history_ignores_foreign_refs_to_pruned_objects() {
+    let (directory, backend, oid) = committed_repository().await;
+    // Another tool's checkpoint ref whose object was pruned, as Codex leaves behind.
+    let foreign = directory.path().join(".git/refs/codex/checkpoints");
+    fs::create_dir_all(&foreign).expect("create foreign ref namespace");
+    fs::write(
+        foreign.join("gone"),
+        "d733a34e5816afc70ebbcccd0ad5852848dd2fe6\n",
+    )
+    .expect("write broken ref");
+    // A detached HEAD on a commit no branch reaches must still be walked.
+    git(directory.path(), &["checkout", "--detach"]);
+    fs::write(directory.path().join("hello.txt"), "detached\n").expect("write change");
+    git(directory.path(), &["commit", "-am", "detached subject"]);
+    let detached_oid = git_stdout(directory.path(), &["rev-parse", "HEAD"]);
+
+    let page = backend
+        .history(
+            directory.path(),
+            &HistoryQuery {
+                scope: HistoryScope::AllRefs,
+                cursor: None,
+                limit: 50,
+            },
+        )
+        .await
+        .expect("history despite a broken foreign ref");
+    let oids: Vec<&str> = page.commits.iter().map(|c| c.oid.as_str()).collect();
+    assert_eq!(oids, [detached_oid.as_str(), oid.as_str()]);
+
+    let search = backend
+        .search_commits(
+            directory.path(),
+            &CommitSearchQuery {
+                query: "subject".into(),
+                scope: HistoryScope::AllRefs,
+                limit: 20,
+            },
+        )
+        .await
+        .expect("search despite a broken foreign ref");
+    assert_eq!(search.total, 2);
+}
+
+#[tokio::test]
 async fn history_shows_one_row_per_stash() {
     let (directory, backend, _) = committed_repository().await;
     fs::write(directory.path().join("hello.txt"), "stashed\n").expect("write tracked change");
