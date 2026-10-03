@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 import { gitcatApi } from "../lib/api";
 import type { RepositorySnapshot } from "../lib/types";
@@ -58,11 +58,17 @@ export function useAutoRefresh({
         autoRefreshRef.current = backgroundRefreshActiveRepository;
     }, [backgroundRefreshActiveRepository]);
 
+    // The repository whose background fetch is still out. An empty repository
+    // reads this: until the remote has answered, "no commits" is only what
+    // this clone knows, not what the remote has.
+    const [fetchingRepositoryId, setFetchingRepositoryId] = useState<string | null>(null);
+
     const autoFetchActiveRepository = useCallback(() => {
         if (!activeRepository || busy || overviewLoading) return;
         if (!snapshot?.remotes.length) return;
         const repository = activeRepository;
         lastAutoFetchRef.current.set(repository.repository_id, Date.now());
+        setFetchingRepositoryId(repository.repository_id);
         void gitcatApi.fetch(repository.repository_id, {
             remote: null,
             prune: autoPrune,
@@ -72,7 +78,10 @@ export function useAutoRefresh({
                 if (activeRepositoryIdRef.current !== repository.repository_id) return;
                 return loadOverview(repository, true, false);
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => setFetchingRepositoryId((current) => (
+                current === repository.repository_id ? null : current
+            )));
     }, [
         activeRepository,
         busy,
@@ -132,5 +141,5 @@ export function useAutoRefresh({
         };
     }, []);
 
-    return { refreshActiveRepository };
+    return { fetchingRepositoryId, refreshActiveRepository };
 }

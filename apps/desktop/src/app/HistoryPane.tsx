@@ -72,6 +72,7 @@ export interface HistoryPaneProps {
     loadMoreHistory: () => void;
     navigateSearch: (direction: 1 | -1) => void;
     overviewLoading: boolean;
+    remoteCheckPending: boolean;
     remoteIconUrls: Map<string, string>;
     avatarImages: ReadonlyMap<string, string>;
     repositoryName: string;
@@ -132,6 +133,7 @@ export function HistoryPane({
     loadMoreHistory,
     navigateSearch,
     overviewLoading,
+    remoteCheckPending,
     remoteIconUrls,
     avatarImages,
     repositoryName,
@@ -307,7 +309,10 @@ export function HistoryPane({
                     {emptyRepository ? (
                         <InitialCommitPrompt
                             busy={busy || overviewLoading || historyLoading}
+                            checkingRemote={remoteCheckPending}
                             onInitialize={createInitialCommit}
+                            remoteName={snapshot?.remotes[0]?.name ?? null}
+                            remoteCount={snapshot?.remotes.length ?? 0}
                             repositoryName={repositoryName}
                             stagedCount={stagedCount}
                         />

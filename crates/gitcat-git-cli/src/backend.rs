@@ -2587,7 +2587,19 @@ impl GitBackend for GitCliBackend {
                 "The repository already has a commit",
             ));
         }
-        let (_, _, parsed) = self.generation_and_refs(path).await?;
+        let (_, refs, parsed) = self.generation_and_refs(path).await?;
+        // A remote that already has branches is a history to check out, not
+        // an empty repository: a root commit made here would share nothing
+        // with it, and the first push would be refused or diverge.
+        if refs
+            .split(|byte| *byte == b'\n')
+            .any(|line| line.starts_with(b"refs/remotes/"))
+        {
+            return Err(ApiError::new(
+                ErrorCode::InvalidRequest,
+                "The remote already has commits; check out one of its branches instead",
+            ));
+        }
         // Whatever the user staged is the commit they meant to make; the README
         // is only for the repository that has nothing staged at all.
         let staged = parsed

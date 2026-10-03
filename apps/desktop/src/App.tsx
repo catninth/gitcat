@@ -502,7 +502,7 @@ function App() {
         stashes,
     });
 
-    const { refreshActiveRepository } = useAutoRefresh({
+    const { fetchingRepositoryId, refreshActiveRepository } = useAutoRefresh({
         activeRepository,
         activeRepositoryIdRef,
         autoFetchIntervalMinutes: persisted.settings.auto_fetch_interval_minutes,
@@ -766,16 +766,43 @@ function App() {
     // The first commit of an empty repository is the one GitCat composes
     // itself. A summary the user already typed on the working-copy row wins
     // over the default, and clears afterwards exactly as the commit form does.
+    // With a remote configured the remote is asked first: an empty clone only
+    // says nothing has been fetched yet, and a root commit made over a remote
+    // that already has history shares nothing with it.
+    const autoPrune = persisted.settings.auto_prune;
+    const hasRemotes = Boolean(snapshot?.remotes.length);
     const createInitialCommit = useCallback(() => {
         const draft = activeCommitDraft;
         const message = draft.message.trim() ? buildCommitMessage(draft) : "Initial commit";
+        let remoteHasHistory = false;
         void runMutation(
-            "Initial commit created",
-            (repository) => gitcatApi.createInitialCommit(repository.repository_id, message),
-        ).then((created) => {
-            if (created) updateActiveCommitDraft({ ...draft, message: "", description: "", amend: false });
+            "Initial commit",
+            async (repository) => {
+                if (hasRemotes) {
+                    await gitcatApi.fetch(repository.repository_id, { remote: null, prune: autoPrune, tags: false });
+                    const fetched = await gitcatApi.snapshot(repository.repository_id);
+                    if (fetched.remote_branches.length) {
+                        remoteHasHistory = true;
+                        return null;
+                    }
+                }
+                return gitcatApi.createInitialCommit(repository.repository_id, message);
+            },
+            { silent: true },
+        ).then((done) => {
+            if (!done) return;
+            if (remoteHasHistory) {
+                addToast({
+                    tone: "info",
+                    title: "The remote already has commits",
+                    detail: "Nothing was committed. Check out one of the remote branches instead.",
+                });
+                return;
+            }
+            addToast({ tone: "success", title: "Initial commit created" });
+            updateActiveCommitDraft({ ...draft, message: "", description: "", amend: false });
         });
-    }, [activeCommitDraft, runMutation, updateActiveCommitDraft]);
+    }, [activeCommitDraft, addToast, autoPrune, hasRemotes, runMutation, updateActiveCommitDraft]);
     if (initializing) {
         return (
             <AppShell className="items-center justify-center gap-3 text-muted [&>svg]:animate-orbit">
@@ -958,6 +985,7 @@ function App() {
                             loadMoreHistory={loadMoreHistory}
                             navigateSearch={navigateSearch}
                             overviewLoading={overviewLoading}
+                            remoteCheckPending={Boolean(activeRepository) && fetchingRepositoryId === activeRepository?.repository_id}
                             remoteIconUrls={iconUrlsByRemote}
                             avatarImages={avatarImages}
                             repositoryName={activeTab?.display_name ?? ""}

@@ -1976,6 +1976,28 @@ async fn initial_commit_rejects_a_repository_that_has_one() {
 }
 
 #[tokio::test]
+async fn initial_commit_rejects_a_repository_whose_remote_has_commits() {
+    let (remote, _, _) = committed_repository().await;
+    let directory = tempdir().expect("temp repository");
+    let backend = GitCliBackend::default();
+    backend
+        .init_repository(directory.path(), "main")
+        .await
+        .expect("initialize repository");
+    let remote_path = remote.path().to_string_lossy().into_owned();
+    git(directory.path(), &["remote", "add", "origin", &remote_path]);
+    git(directory.path(), &["fetch", "origin"]);
+
+    let error = backend
+        .create_initial_commit(directory.path(), "Initial commit")
+        .await
+        .expect_err("a remote with history is refused");
+
+    assert_eq!(error.code, ErrorCode::InvalidRequest);
+    assert!(!directory.path().join("README.md").exists());
+}
+
+#[tokio::test]
 async fn reset_rejects_detached_head() {
     let (directory, backend, oid) = committed_repository().await;
     backend
