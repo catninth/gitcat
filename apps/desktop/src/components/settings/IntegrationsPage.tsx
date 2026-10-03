@@ -37,7 +37,7 @@ export function IntegrationsPage({
           <button
             aria-current={integration.id === selected.id ? "page" : undefined}
             className={cx(
-              "flex w-full cursor-pointer items-center gap-2.25 rounded-[5px] px-2.25 py-1.75 text-left text-[12px] whitespace-nowrap",
+              "flex w-full cursor-pointer items-center gap-2.25 rounded-[5px] px-2.25 py-1.75 text-left text-[13px] whitespace-nowrap",
               integration.id === selected.id
                 ? "bg-accent/12 font-[650] text-accent"
                 : "text-muted hover:bg-foreground/6 hover:text-foreground",
@@ -55,11 +55,11 @@ export function IntegrationsPage({
       <section className="min-w-0">
         <header className="mb-3 flex items-center gap-2">
           <selected.icon className="text-accent" size={17} />
-          <h3 className="text-[14px] font-[640]">{selected.label}</h3>
+          <h3 className="text-[15px] font-[640]">{selected.label}</h3>
           {selected.support === "links_only" ? <Badge>Coming soon</Badge> : null}
         </header>
 
-        <p className="mb-4 text-[11px] leading-[1.55] text-muted">
+        <p className="mb-4 text-[13px] leading-[1.55] text-muted">
           {selected.support === "links_only"
             ? "Name the hosts of this service so GitCat builds their links correctly."
             : "Connecting raises the request limit, reaches private repositories, and lets GitCat list the repositories you can clone. The credential is kept in the operating system credential store and is never part of a settings export."}
@@ -117,7 +117,7 @@ function SelfHostedHosts({
     <div className="flex flex-col gap-3">
       {hosts.map((host) => (
         <div className="rounded-[7px] border border-border bg-background/45 p-2.5" key={host}>
-          <div className="mb-2 flex items-center gap-1.5 text-[11px]">
+          <div className="mb-2 flex items-center gap-1.5 text-[13px]">
             <span className="min-w-0 grow truncate font-[650] text-foreground">{host}</span>
             <IconButton
               aria-label={`Remove ${host}`}
@@ -132,7 +132,7 @@ function SelfHostedHosts({
       ))}
 
       {hosts.length === 0 ? (
-        <p className="text-[11px] leading-[1.45] text-muted/72">
+        <p className="text-[13px] leading-[1.45] text-muted/72">
           No host named yet. GitCat cannot recognise a self-hosted install from its address alone.
         </p>
       ) : null}
@@ -157,9 +157,9 @@ function SelfHostedHosts({
             Add host
           </Button>
         </div>
-        {error ? <small className="text-[10px] text-danger">{error}</small> : null}
-        {duplicate ? <small className="text-[10px] text-danger">this host is already named</small> : null}
-        <small className="text-[10px] text-muted/72">
+        {error ? <small className="text-[12px] text-danger">{error}</small> : null}
+        {duplicate ? <small className="text-[12px] text-danger">this host is already named</small> : null}
+        <small className="text-[12px] text-muted/72">
           Hosts are saved with the dialog; credentials are stored as soon as they are connected.
         </small>
       </div>

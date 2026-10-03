@@ -7,7 +7,7 @@ export const FIELD_INPUT =
 
 export function SectionHeading({ className = "", children }: { className?: string; children: ReactNode }) {
   return (
-    <h3 className={cx("mb-3 mt-6.25 text-[11px] uppercase tracking-[0.07em] text-foreground first:mt-0.5", className)}>
+    <h3 className={cx("mb-3 mt-6.25 text-[12px] uppercase tracking-[0.07em] text-foreground first:mt-0.5", className)}>
       {children}
     </h3>
   );
@@ -16,7 +16,7 @@ export function SectionHeading({ className = "", children }: { className?: strin
 // Label above a full-width control; `hint` renders right-aligned next to it.
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <label className="mb-3.25 flex flex-col gap-1.5 text-[11px] text-muted">
+    <label className="mb-3.25 flex flex-col gap-1.5 text-[13px] text-muted">
       <span className="flex justify-between">
         {label}
         {hint ? <small className="text-muted/72">{hint}</small> : null}
@@ -37,7 +37,7 @@ export function CheckField({ checked, children, disabled = false, onChange }: {
   return (
     <label
       className={cx(
-        "flex items-start gap-1.75 text-[11px] leading-[1.4] text-muted",
+        "flex items-start gap-1.75 text-[13px] leading-[1.4] text-muted",
         disabled && "opacity-55",
       )}
     >

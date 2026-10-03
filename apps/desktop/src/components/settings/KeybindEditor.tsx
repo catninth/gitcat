@@ -14,7 +14,7 @@ import { SectionHeading } from "./SettingsField";
 
 // Sits on the row border, so it needs the panel background to punch through it.
 function KeybindError({ children }: { children: string }) {
-  return <span className="absolute -bottom-1.25 right-10.75 bg-panel px-0.75 text-[8px] text-danger">{children}</span>;
+  return <span className="absolute -bottom-1.25 right-10.75 bg-panel px-0.75 text-[10px] text-danger">{children}</span>;
 }
 
 export function KeybindEditor({
@@ -59,7 +59,7 @@ export function KeybindEditor({
   return (
     <section>
       <SectionHeading className="flex items-center gap-1.75"><Keyboard size={14} /> Keybinds</SectionHeading>
-      <p className="-mt-1.25 mb-3 text-[10px] text-muted">
+      <p className="-mt-1.25 mb-3 text-[12px] text-muted">
         Click a shortcut, then press the new key combination. Backspace/Delete clears it. Duplicate and reserved shortcuts are rejected.
       </p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 max-[1080px]:grid-cols-1">
@@ -74,9 +74,9 @@ export function KeybindEditor({
               key={definition.action}
             >
               <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-1.75 gap-y-0.5">
-                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px]">{definition.label}</strong>
-                <span className="col-span-full overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-muted">{definition.description}</span>
-                <small className="col-start-2 row-start-1 text-[8px] uppercase text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">{definition.scope}</small>
+                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">{definition.label}</strong>
+                <span className="col-span-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted">{definition.description}</span>
+                <small className="col-start-2 row-start-1 text-[10px] uppercase text-[color-mix(in_srgb,var(--gc-accent)_75%,var(--gc-muted))]">{definition.scope}</small>
               </div>
               <button
                 aria-label={`Change ${definition.label} shortcut`}
@@ -94,7 +94,7 @@ export function KeybindEditor({
                 onKeyDown={(event) => capture(definition.action, event)}
                 type="button"
               >
-                <kbd className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px]">
+                <kbd className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">
                   {recording === definition.action ? "Press keys…" : keybinds[definition.action] || "Unassigned"}
                 </kbd>
               </button>

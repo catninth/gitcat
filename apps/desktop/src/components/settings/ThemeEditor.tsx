@@ -125,10 +125,10 @@ export function ThemeEditor({
                 title={candidate.name}
                 type="button"
               >
-                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px]">{candidate.name}</strong>
+                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">{candidate.name}</strong>
                 {active ? <Check className="text-accent" size={13} /> : null}
                 <ThemeSwatches theme={candidate} />
-                <small className="self-center text-[8px] uppercase tracking-[0.08em] text-muted">
+                <small className="self-center text-[10px] uppercase tracking-[0.08em] text-muted">
                   {candidate.built_in ? "Preset" : "Custom"}
                 </small>
               </button>
@@ -139,7 +139,7 @@ export function ThemeEditor({
 
       <section className="min-w-0">
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-          <label className="flex min-w-0 flex-col gap-1.25 text-[10px] text-muted">
+          <label className="flex min-w-0 flex-col gap-1.25 text-[12px] text-muted">
             Theme name
             <Input
               aria-invalid={editable && !theme.name.trim()}
@@ -149,7 +149,7 @@ export function ThemeEditor({
               onChange={(event) => onRename(theme.id, event.target.value)}
               value={theme.name}
             />
-            {editable && !theme.name.trim() ? <span className="text-[9px] text-danger">Theme name is required.</span> : null}
+            {editable && !theme.name.trim() ? <span className="text-[11px] text-danger">Theme name is required.</span> : null}
           </label>
           <div className="flex gap-1.5">
             <Button compact icon={<Copy size={13} />} onClick={() => onDuplicate(theme.id)}>Duplicate</Button>
@@ -167,7 +167,7 @@ export function ThemeEditor({
 
         <ThemeSpecimen theme={theme} />
         {theme.built_in ? (
-          <p className="mt-2 rounded-[5px] border border-border bg-background/45 px-2.5 py-2 text-[10px] text-muted">
+          <p className="mt-2 rounded-[5px] border border-border bg-background/45 px-2.5 py-2 text-[12px] text-muted">
             Built-in preset. Duplicate it to create an editable version.
           </p>
         ) : null}
@@ -190,8 +190,8 @@ export function ThemeEditor({
                 type="color"
                 value={theme.colors[field]}
               />
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-foreground">{label}</span>
-              <code className="text-[9px] text-muted">{theme.colors[field]}</code>
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">{label}</span>
+              <code className="text-[11px] text-muted">{theme.colors[field]}</code>
             </label>
           ))}
         </div>

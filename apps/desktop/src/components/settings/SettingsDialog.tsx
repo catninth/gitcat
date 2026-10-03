@@ -165,7 +165,7 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
             <button
               aria-current={page === id ? "page" : undefined}
               className={cx(
-                "flex min-h-9 cursor-pointer items-center gap-2.25 rounded-[5px] border px-2.5 text-left text-[11px] font-semibold whitespace-nowrap transition-colors",
+                "flex min-h-9 cursor-pointer items-center gap-2.25 rounded-[5px] border px-2.5 text-left text-[13px] font-semibold whitespace-nowrap transition-colors",
                 page === id
                   ? "border-[color-mix(in_srgb,var(--gc-accent)_45%,var(--gc-border))] bg-[color-mix(in_srgb,var(--gc-accent)_10%,var(--gc-background))] text-foreground"
                   : "border-transparent bg-transparent text-muted hover:bg-row-hover hover:text-foreground",
@@ -178,7 +178,7 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
               {label}
             </button>
           ))}
-          <div className="mt-auto hidden rounded-md border border-border bg-background/36 p-2.5 text-[9px] leading-[1.45] text-muted min-[721px]:block">
+          <div className="mt-auto hidden rounded-md border border-border bg-background/36 p-2.5 text-[11px] leading-[1.45] text-muted min-[721px]:block">
             Changes stay in preview until saved.
           </div>
         </nav>
@@ -276,7 +276,7 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
                 >
                   Also ask Gravatar for authors the hosting service does not know
                 </CheckField>
-                <p className="mt-1.5 text-[10px] leading-[1.45] text-muted/72">
+                <p className="mt-1.5 text-[12px] leading-[1.45] text-muted/72">
                   Gravatar is a third party that is not hosting the repository, and the lookup sends
                   it a hash of the author's email address.
                 </p>
@@ -302,7 +302,7 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
                 >
                   Show the check state of branches with a pull request
                 </CheckField>
-                <p className="mt-1.5 text-[10px] leading-[1.45] text-muted/72">
+                <p className="mt-1.5 text-[12px] leading-[1.45] text-muted/72">
                   Both ask the service that already hosts the repository. Checks are only looked up
                   for branches with a pull request and for the checked-out branch.
                 </p>
@@ -356,14 +356,14 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
           {page === "backup" ? (
             <section className="max-w-[720px]">
               <SectionHeading>Portable settings</SectionHeading>
-              <p className="max-w-[620px] text-[11px] leading-[1.6] text-muted">
+              <p className="max-w-[620px] text-[13px] leading-[1.6] text-muted">
                 One versioned JSON file contains every preference, all themes, graph display choices, and every keybind. Repository contents and credentials are never included.
               </p>
               <div className="mt-5 grid grid-cols-2 gap-3 max-[840px]:grid-cols-1">
                 <div className="rounded-[7px] border border-border bg-background/45 p-4">
                   <Download className="mb-3 text-accent" size={21} />
-                  <h3 className="mb-1.5 text-[13px]">Export settings</h3>
-                  <p className="mb-4 min-h-8 text-[10px] leading-[1.5] text-muted">
+                  <h3 className="mb-1.5 text-[14px]">Export settings</h3>
+                  <p className="mb-4 min-h-8 text-[12px] leading-[1.5] text-muted">
                     Save current draft as a portable <code>.json</code> backup.
                   </p>
                   <Button disabled={transferring || !canSave} icon={<Download size={14} />} onClick={() => void runExport()}>
@@ -372,8 +372,8 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
                 </div>
                 <div className="rounded-[7px] border border-border bg-background/45 p-4">
                   <Upload className="mb-3 text-accent" size={21} />
-                  <h3 className="mb-1.5 text-[13px]">Import settings</h3>
-                  <p className="mb-4 min-h-8 text-[10px] leading-[1.5] text-muted">
+                  <h3 className="mb-1.5 text-[14px]">Import settings</h3>
+                  <p className="mb-4 min-h-8 text-[12px] leading-[1.5] text-muted">
                     Preview a GitCat backup, then save to replace preferences.
                   </p>
                   <Button disabled={transferring} icon={<Upload size={14} />} onClick={startImport}>
@@ -402,7 +402,7 @@ export function SettingsDialog({ settings, defaults, onSave, onClose }: Settings
                 <p
                   aria-live="polite"
                   className={cx(
-                    "mt-4 rounded-[5px] border px-3 py-2.5 text-[10px]",
+                    "mt-4 rounded-[5px] border px-3 py-2.5 text-[12px]",
                     transferNotice.tone === "success"
                       ? "border-[color-mix(in_srgb,var(--gc-success)_50%,var(--gc-border))] bg-[color-mix(in_srgb,var(--gc-success)_9%,var(--gc-background))] text-success"
                       : "border-[color-mix(in_srgb,var(--gc-danger)_50%,var(--gc-border))] bg-[color-mix(in_srgb,var(--gc-danger)_9%,var(--gc-background))] text-danger",
