@@ -106,10 +106,11 @@ export function RepositoryTab({
       className={cx(
         "group/tab relative flex min-w-0 max-w-60 shrink-0 items-center border transition-[background-color,border-color,color,opacity] duration-120",
         // The active tab takes the toolbar's colour and runs into it, so the two read as one surface.
+        // The others are solid too, so a tab dragged across another hides it.
         active
           ? "z-1 h-8.5 rounded-t-lg border-border border-b-0 bg-[color-mix(in_srgb,var(--gc-panel)_91%,black)] text-foreground"
-          : "mb-1 h-7 rounded-md border-transparent bg-foreground/5 text-muted hover:bg-foreground/9 hover:text-foreground",
-        tab.unavailable && "border-dashed opacity-70",
+          : "mb-1 h-7 rounded-md border-transparent bg-[color-mix(in_srgb,var(--gc-text)_6%,color-mix(in_srgb,var(--gc-surface)_93%,black))] text-muted hover:bg-[color-mix(in_srgb,var(--gc-text)_10%,color-mix(in_srgb,var(--gc-surface)_93%,black))] hover:text-foreground",
+        tab.unavailable && "border-dashed",
         tab.unavailable && !active && "border-border",
         dragging ? "z-10 cursor-grabbing shadow-[0_4px_14px_rgb(0_0_0/35%)]" : "cursor-pointer",
       )}
