@@ -36,38 +36,6 @@ export function useDialogActions({
         const currentPrompt = prompt;
         setPrompt(null);
         switch (currentPrompt.kind) {
-            case "create_group":
-                setPersisted((current) => {
-                    const groupId = makeId("group");
-                    let moved = currentPrompt.tabId
-                        ? current.workspace.ungrouped_tabs.find((tab) => tab.id === currentPrompt.tabId)
-                        : undefined;
-                    const ungrouped_tabs = currentPrompt.tabId
-                        ? current.workspace.ungrouped_tabs.filter((tab) => tab.id !== currentPrompt.tabId)
-                        : current.workspace.ungrouped_tabs;
-                    const groupsWithout = current.workspace.groups.map((group) => ({
-                        ...group,
-                        tabs: currentPrompt.tabId ? group.tabs.filter((tab) => {
-                            if (tab.id === currentPrompt.tabId) moved = tab;
-                            return tab.id !== currentPrompt.tabId;
-                        }) : group.tabs,
-                    }));
-                    const group = {
-                        id: groupId,
-                        name: value,
-                        collapsed: false,
-                        order: groupsWithout.length,
-                        tabs: moved ? [{ ...moved, order: 0 }] : [],
-                    };
-                    return {
-                        ...current,
-                        workspace: { ...current.workspace, ungrouped_tabs, groups: [...groupsWithout, group] },
-                    };
-                });
-                break;
-            case "rename_group":
-                setPersisted((current) => ({ ...current, workspace: { ...current.workspace, groups: current.workspace.groups.map((group) => group.id === currentPrompt.groupId ? { ...group, name: value } : group) } }));
-                break;
             case "alias_tab":
                 setPersisted((current) => ({
                     ...current,
@@ -101,8 +69,6 @@ export function useDialogActions({
     const promptConfig = useMemo(() => {
         if (!prompt) return null;
         switch (prompt.kind) {
-            case "create_group": return { title: "New repository group", label: "Group name", placeholder: "Client work", confirmLabel: "Create group" };
-            case "rename_group": return { title: "Rename repository group", label: "Group name", initialValue: prompt.current, confirmLabel: "Rename" };
             case "alias_tab": return { title: "Rename repository tab", label: "Tab name", initialValue: prompt.current, confirmLabel: "Rename" };
             case "create_branch": return { title: "Create branch", label: "Branch name", placeholder: "feature/short-name", confirmLabel: "Create and checkout" };
             case "rename_branch": return { title: "Rename branch", label: "New branch name", initialValue: prompt.branch.name, confirmLabel: "Rename" };

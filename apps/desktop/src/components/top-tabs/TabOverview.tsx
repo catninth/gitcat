@@ -1,99 +1,67 @@
-import {
-    AlertTriangle,
-    Check,
-    Folder,
-    FolderGit2,
-    FolderX,
-    House,
-    LayoutList,
-    Search
-} from "lucide-react";
+import { Check, House, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cx } from "../../lib";
 import { MenuSurface } from "../menu";
 import { IconButton } from "../ui";
 import type { TabView } from "./RepositoryTab";
-import type { TabGroupView } from "./TabGroup";
 import { repositoryLocation, repositoryTabDescription } from "./tabPresentation";
 
 interface TabOverviewProps {
   activeTabId?: string;
   disabled: boolean;
-  groups: TabGroupView[];
   onSelect: (tabId: string) => void;
-  ungroupedTabs: TabView[];
-}
-
-interface OverviewSection {
-  id: string;
-  label: string;
   tabs: TabView[];
-  ungrouped?: boolean;
 }
 
 function OverviewRow({
   active,
+  highlighted,
+  onHover,
   onSelect,
+  showLocation,
   tab,
 }: {
   active: boolean;
+  highlighted: boolean;
+  onHover: () => void;
   onSelect: () => void;
+  showLocation: boolean;
   tab: TabView;
 }) {
-  const StartIcon = tab.kind === "start" ? House : FolderGit2;
-
   return (
     <button
       aria-current={active ? "page" : undefined}
       aria-label={repositoryTabDescription(tab)}
       className={cx(
-        "group/overview-row flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-[5px] border px-2.5 py-1.75 text-left",
-        "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--gc-accent)_18%,transparent)]",
-        active
-          ? "border-[color-mix(in_srgb,var(--gc-accent)_42%,var(--gc-border))] bg-row-selected"
-          : "border-transparent bg-transparent hover:border-border/70 hover:bg-row-hover",
+        "flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left transition-colors duration-75",
+        highlighted ? "bg-foreground/7 text-foreground" : "text-muted",
       )}
+      data-overview-row={tab.id}
       onClick={onSelect}
+      onMouseMove={onHover}
+      tabIndex={-1}
       title={tab.path}
       type="button"
     >
+      {tab.kind === "start" ? <House className="shrink-0" size={13} strokeWidth={1.9} /> : null}
       <span
         className={cx(
-          "grid size-7.5 shrink-0 place-items-center rounded-[5px] border",
-          active
-            ? "border-[color-mix(in_srgb,var(--gc-accent)_45%,var(--gc-border))] bg-[color-mix(in_srgb,var(--gc-accent)_13%,var(--gc-panel))] text-accent"
-            : "border-border/70 bg-background/55 text-muted group-hover/overview-row:text-foreground",
+          "min-w-0 truncate text-[12px]",
+          active ? "font-[620] text-foreground" : "font-[540]",
+          tab.unavailable && "text-danger line-through decoration-danger/50",
         )}
       >
-        <StartIcon size={15} strokeWidth={1.8} />
+        {tab.label}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-[660] text-foreground">
-            {tab.label}
-          </strong>
-          {tab.conflictCount ? (
-            <span className="inline-flex shrink-0 items-center gap-0.75 text-danger">
-              <AlertTriangle size={11} />
-              <b className="font-mono text-[9px]">{tab.conflictCount}</b>
-            </span>
-          ) : null}
+      {/* Only a name shared by two open repositories needs its folder to tell them apart. */}
+      {showLocation ? (
+        <span className="min-w-0 shrink truncate font-mono text-[10px] text-muted/80">
+          {repositoryLocation(tab.path)}
         </span>
-        <span
-          className={cx(
-            "mt-px block overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[9.5px]",
-            tab.unavailable ? "text-danger" : "text-muted",
-          )}
-        >
-          {tab.kind === "start"
-            ? "Open, clone, or create a repository"
-            : tab.unavailable
-              ? `Unavailable · ${repositoryLocation(tab.path)}`
-              : repositoryLocation(tab.path)}
-        </span>
-      </span>
-      {active ? <Check aria-hidden="true" className="shrink-0 text-accent" size={15} /> : null}
+      ) : null}
+      <span className="flex-1" />
+      {active ? <Check aria-hidden="true" className="shrink-0 text-accent" size={14} /> : null}
     </button>
   );
 }
@@ -101,36 +69,46 @@ function OverviewRow({
 export function TabOverview({
   activeTabId,
   disabled,
-  groups,
   onSelect,
-  ungroupedTabs,
+  tabs,
 }: TabOverviewProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlightedId, setHighlightedId] = useState<string | undefined>();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const tabCount = ungroupedTabs.length + groups.reduce((total, group) => total + group.tabs.length, 0);
+  const tabCount = tabs.length;
 
-  const sections = useMemo<OverviewSection[]>(() => [
-    ...(ungroupedTabs.length
-      ? [{ id: "ungrouped", label: "No folder", tabs: ungroupedTabs, ungrouped: true }]
-      : []),
-    ...groups
-      .filter((group) => group.tabs.length)
-      .map((group) => ({ id: group.id, label: group.name, tabs: group.tabs })),
-  ], [groups, ungroupedTabs]);
-
-  const filteredSections = useMemo(() => {
+  const visibleTabs = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    if (!needle) return sections;
+    if (!needle) return tabs;
+    return tabs.filter((tab) => `${tab.label} ${tab.path}`.toLocaleLowerCase().includes(needle));
+  }, [query, tabs]);
 
-    return sections.flatMap((section) => {
-      const tabs = section.tabs.filter((tab) => (
-        `${tab.label} ${tab.path} ${section.label}`.toLocaleLowerCase().includes(needle)
-      ));
-      return tabs.length ? [{ ...section, tabs }] : [];
+  const duplicateLabels = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tab of tabs) counts.set(tab.label, (counts.get(tab.label) ?? 0) + 1);
+    return new Set([...counts].filter(([, count]) => count > 1).map(([label]) => label));
+  }, [tabs]);
+
+  const highlighted = visibleTabs.find((tab) => tab.id === highlightedId) ?? visibleTabs[0];
+
+  const choose = (tabId: string) => {
+    onSelect(tabId);
+    setOpen(false);
+  };
+
+  const moveHighlight = (step: number) => {
+    if (!visibleTabs.length) return;
+    const index = highlighted ? visibleTabs.indexOf(highlighted) : -1;
+    const next = visibleTabs[(index + step + visibleTabs.length) % visibleTabs.length];
+    setHighlightedId(next.id);
+    requestAnimationFrame(() => {
+      [...(rootRef.current?.querySelectorAll<HTMLElement>("[data-overview-row]") ?? [])]
+        .find((element) => element.dataset.overviewRow === next.id)
+        ?.scrollIntoView({ block: "nearest" });
     });
-  }, [query, sections]);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -158,19 +136,20 @@ export function TabOverview({
         aria-haspopup="dialog"
         aria-label={`Browse ${tabCount} open ${tabCount === 1 ? "repository" : "repositories"}`}
         className={cx(
-          "relative size-8.5! rounded-md!",
+          "relative size-7! rounded-md!",
           open && "border-border-strong! bg-control-hover! text-foreground!",
         )}
         disabled={disabled}
         onClick={() => {
           setOpen((current) => !current);
           setQuery("");
+          setHighlightedId(activeTabId);
         }}
         title="All open repositories"
       >
-        <LayoutList size={16} />
+        <LayoutList size={15} />
         {tabCount ? (
-          <span className="absolute -right-0.75 -top-0.75 grid min-w-3.75 place-items-center rounded-full border border-surface bg-panel px-0.75 font-mono text-[8px] font-bold leading-3.5 text-muted">
+          <span className="absolute -right-1 -top-1 grid min-w-3.75 place-items-center rounded-full bg-foreground/12 px-0.75 font-mono text-[8px] font-bold leading-3.75 text-foreground/80">
             {tabCount}
           </span>
         ) : null}
@@ -179,56 +158,48 @@ export function TabOverview({
       {open ? (
         <MenuSurface
           aria-label="Open repositories"
-          className="absolute right-0 top-[calc(100%+7px)] z-80 flex max-h-[min(430px,calc(100vh-80px))] w-[min(370px,calc(100vw-18px))] flex-col overflow-hidden p-0!"
+          className="absolute right-0 top-[calc(100%+6px)] z-80 flex max-h-[min(420px,calc(100vh-80px))] w-[min(320px,calc(100vw-18px))] flex-col overflow-hidden p-0!"
           role="dialog"
         >
-          <div className="border-b border-border bg-background/38 p-2">
-            <label className="flex h-8 items-center gap-2 rounded-[5px] border border-border bg-background/72 px-2.25 text-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--gc-accent)_16%,transparent)]">
-              <Search aria-hidden="true" size={14} />
-              <input
-                aria-label="Find open repository"
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-foreground placeholder:text-muted/75"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Find open repository…"
-                ref={inputRef}
-                type="search"
-                value={query}
-              />
-              <kbd className="rounded border border-border bg-panel px-1 py-px font-mono text-[8px] text-muted">Esc</kbd>
-            </label>
-          </div>
+          <label className="flex h-10 flex-[0_0_auto] items-center gap-2 border-b border-border px-3 text-muted">
+            <Search aria-hidden="true" size={14} />
+            <input
+              aria-label="Find open repository"
+              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-muted/70"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setHighlightedId(undefined);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  moveHighlight(event.key === "ArrowDown" ? 1 : -1);
+                } else if (event.key === "Enter" && highlighted) {
+                  event.preventDefault();
+                  choose(highlighted.id);
+                }
+              }}
+              placeholder="Find repository"
+              ref={inputRef}
+              type="search"
+              value={query}
+            />
+          </label>
 
-          <div className="min-h-0 overflow-y-auto p-1.5">
-            {filteredSections.length ? filteredSections.map((section) => (
-              <section className="not-last:mb-1.5" key={section.id}>
-                <div className="flex h-6 items-center gap-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.08em] text-muted">
-                  {section.ungrouped ? <FolderX size={12} /> : <Folder size={12} />}
-                  <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {section.label}
-                  </span>
-                  <span className="font-mono text-[8px]">{section.tabs.length}</span>
-                </div>
-                <div className="space-y-0.5">
-                  {section.tabs.map((tab) => (
-                    <OverviewRow
-                      active={tab.id === activeTabId}
-                      key={tab.id}
-                      onSelect={() => {
-                        onSelect(tab.id);
-                        setOpen(false);
-                      }}
-                      tab={tab}
-                    />
-                  ))}
-                </div>
-              </section>
+          <div className="min-h-0 overflow-y-auto p-1">
+            {visibleTabs.length ? visibleTabs.map((tab) => (
+              <OverviewRow
+                active={tab.id === activeTabId}
+                highlighted={tab.id === highlighted?.id}
+                key={tab.id}
+                onHover={() => setHighlightedId(tab.id)}
+                onSelect={() => choose(tab.id)}
+                showLocation={duplicateLabels.has(tab.label)}
+                tab={tab}
+              />
             )) : (
-              <div className="grid min-h-27 place-items-center px-5 text-center">
-                <span>
-                  <Search className="mx-auto mb-2 text-muted" size={18} />
-                  <strong className="block text-[12px] font-semibold text-foreground">No matching repository</strong>
-                  <small className="mt-0.75 block text-[10px] text-muted">Search by name, folder, or path.</small>
-                </span>
+              <div className="px-3 py-6 text-center text-[11.5px] text-muted">
+                No repository matches “{query.trim()}”
               </div>
             )}
           </div>

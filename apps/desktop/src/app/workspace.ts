@@ -32,10 +32,7 @@ export function makeId(prefix: string): string {
 }
 
 export function workspaceTabs(state: PersistedState["workspace"]): RepositoryTab[] {
-    return [
-        ...(state.ungrouped_tabs ?? []),
-        ...state.groups.flatMap((group) => group.tabs),
-    ];
+    return state.ungrouped_tabs ?? [];
 }
 
 /**
@@ -259,8 +256,13 @@ export function normalizePersistedState(state: PersistedState): PersistedState {
     const workspace: PersistedState["workspace"] = {
         version: 2,
         active_tab_id: state.workspace?.active_tab_id ?? null,
-        groups: state.workspace?.groups ?? [],
-        ungrouped_tabs: state.workspace?.ungrouped_tabs ?? [],
+        // Repository folders are gone; tabs saved inside one rejoin the single
+        // row after the ones that were never filed, in their old order.
+        groups: [],
+        ungrouped_tabs: [
+            ...(state.workspace?.ungrouped_tabs ?? []),
+            ...(state.workspace?.groups ?? []).flatMap((group) => group.tabs),
+        ].map((tab, order) => ({ ...tab, order })),
     };
     const recents = state.recents?.length
         ? state.recents

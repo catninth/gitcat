@@ -1,4 +1,4 @@
-import { Copy, Download, ExternalLink, FolderInput, FolderPlus, FolderX, GitBranchPlus, GitCommitHorizontal, GitMerge, GitPullRequestArrow, Link, PackageCheck, PackageOpen, RotateCcw, Tag, Trash2, Upload, X, } from "lucide-react";
+import { Copy, Download, ExternalLink, GitBranchPlus, GitCommitHorizontal, GitMerge, GitPullRequestArrow, Link, PackageCheck, PackageOpen, RotateCcw, Tag, Trash2, Upload, X, } from "lucide-react";
 import { PencilFilled } from "../components/ui/PencilFilled";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction, } from "react";
 
@@ -117,7 +117,6 @@ export interface ContextMenuActionsParams {
     copySha: (oid: string) => Promise<void>;
     defaultPullMode: PullMode;
     detailsOid: string | undefined;
-    moveRepositoryTab: (tabId: string, groupId: string | null) => void;
     pullActiveRepository: (mode?: PullMode) => void;
     runMutation: RunMutation;
     setBranchMenu: Dispatch<SetStateAction<BranchMenuState | null>>;
@@ -155,7 +154,6 @@ export function useContextMenuActions({
     copySha,
     defaultPullMode,
     detailsOid,
-    moveRepositoryTab,
     pullActiveRepository,
     runMutation,
     setBranchMenu,
@@ -533,27 +531,13 @@ export function useContextMenuActions({
         const tabIndex = orderedTabs.findIndex((tab) => tab.id === tabMenu.tab.id);
         return [
             { id: "activate", label: "Activate repository", icon: <GitCommitHorizontal size={15} /> },
-            {
-                id: "move:ungrouped",
-                label: tabMenu.groupId === null ? "No folder (current)" : "Move to no folder",
-                icon: <FolderX size={15} />,
-                disabled: tabMenu.groupId === null,
-                separatorBefore: true,
-            },
-            ...workspace.groups.map((group) => ({
-                id: `move:${group.id}`,
-                label: group.id === tabMenu.groupId ? `${group.name} (current)` : `Move to ${group.name}`,
-                icon: <FolderInput size={15} />,
-                disabled: group.id === tabMenu.groupId,
-            })),
-            { id: "new_folder", label: "Move to new folder", icon: <FolderPlus size={15} /> },
             { id: "alias", label: "Rename tab", icon: <Tag size={15} />, separatorBefore: true },
             { id: "copy_path", label: "Copy repository path", icon: <Copy size={15} /> },
             { id: "close_others", label: "Close other repositories", icon: <X size={15} />, disabled: orderedTabs.length <= 1, separatorBefore: true },
             { id: "close_right", label: "Close repositories to the right", icon: <X size={15} />, disabled: tabIndex < 0 || tabIndex === orderedTabs.length - 1 },
             { id: "close", label: "Close repository", icon: <X size={15} /> },
         ];
-    }, [workspace.groups, tabMenu]);
+    }, [workspace, tabMenu]);
 
     const executeTabAction = useCallback((action: string) => {
         if (!tabMenu) return;
@@ -561,12 +545,6 @@ export function useContextMenuActions({
         setTabMenu(null);
         if (action === "activate") {
             setPersisted((current) => ({ ...current, workspace: { ...current.workspace, active_tab_id: selectedTab.id } }));
-        } else if (action === "move:ungrouped") {
-            moveRepositoryTab(selectedTab.id, null);
-        } else if (action.startsWith("move:")) {
-            moveRepositoryTab(selectedTab.id, action.slice("move:".length));
-        } else if (action === "new_folder") {
-            setPrompt({ kind: "create_group", tabId: selectedTab.id });
         } else if (action === "alias") {
             setPrompt({ kind: "alias_tab", tabId: selectedTab.id, current: selectedTab.label });
         } else if (action === "copy_path") {
@@ -585,7 +563,7 @@ export function useContextMenuActions({
         } else if (action === "close") {
             closeTab(selectedTab.id);
         }
-    }, [activateRepositoryTab, addToast, closeTab, moveRepositoryTab, workspace, showError, tabMenu]);
+    }, [activateRepositoryTab, addToast, closeTab, workspace, showError, tabMenu]);
 
     const checkoutRemoteBranch = useCallback((branch: BranchInfo) => {
         const localName = branchNameWithoutRemote(branch.name);

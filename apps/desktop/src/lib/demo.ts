@@ -339,32 +339,17 @@ const defaultState = (): PersistedState => ({
   },
   workspace: {
     version: 2,
-    ungrouped_tabs: [],
-    groups: [
+    ungrouped_tabs: [
       {
-        id: "group-work",
-        name: "Work",
-        collapsed: false,
+        id: "tab-gitcat",
+        repository_path: "C:\\Projects\\GitCat",
+        display_name: "GitCat",
         order: 0,
-        tabs: [
-          {
-            id: "tab-gitcat",
-            repository_path: "C:\\Projects\\GitCat",
-            display_name: "GitCat",
-            order: 0,
-            conflict_target: "origin/main",
-            conflict_target_disabled: false,
-          },
-        ],
-      },
-      {
-        id: "group-playground",
-        name: "Playground",
-        collapsed: true,
-        order: 1,
-        tabs: [],
+        conflict_target: "origin/main",
+        conflict_target_disabled: false,
       },
     ],
+    groups: [],
     active_tab_id: "tab-gitcat",
   },
   recents: [

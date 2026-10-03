@@ -1,10 +1,10 @@
-import { FolderGit2, House, X } from "lucide-react";
+import { House, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 
 import { cx } from "../../lib";
 import { IconButton } from "../ui";
-import { repositoryLocation, repositoryTabDescription } from "./tabPresentation";
+import { repositoryTabDescription } from "./tabPresentation";
 
 export interface TabView {
   id: string;
@@ -18,14 +18,12 @@ export interface TabView {
 
 export interface RepositoryTabContextMenuRequest {
   tab: TabView;
-  groupId: string | null;
   clientX: number;
   clientY: number;
 }
 
 export function RepositoryTab({
   tab,
-  groupId,
   active,
   actionsDisabled,
   onSelect,
@@ -34,7 +32,6 @@ export function RepositoryTab({
   onNavigate,
 }: {
   tab: TabView;
-  groupId: string | null;
   active: boolean;
   actionsDisabled: boolean;
   onSelect: (tabId: string) => void;
@@ -43,8 +40,6 @@ export function RepositoryTab({
   onNavigate: (tabId: string, direction: "previous" | "next" | "first" | "last") => void;
 }) {
   const tabRef = useRef<HTMLDivElement>(null);
-  const TabIcon = tab.kind === "start" ? House : FolderGit2;
-  const location = tab.kind === "start" ? "Repository home" : repositoryLocation(tab.path);
 
   useEffect(() => {
     const tabElement = tabRef.current;
@@ -66,7 +61,7 @@ export function RepositoryTab({
     event.preventDefault();
     if (actionsDisabled) return;
     event.currentTarget.querySelector<HTMLButtonElement>("[data-tab-main]")?.focus();
-    onContextMenu({ tab, groupId, clientX: event.clientX, clientY: event.clientY });
+    onContextMenu({ tab, clientX: event.clientX, clientY: event.clientY });
   };
 
   const openKeyboardContextMenu = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -74,7 +69,7 @@ export function RepositoryTab({
       event.preventDefault();
       if (actionsDisabled) return;
       const bounds = event.currentTarget.getBoundingClientRect();
-      onContextMenu({ tab, groupId, clientX: bounds.left + 12, clientY: bounds.bottom - 2 });
+      onContextMenu({ tab, clientX: bounds.left + 12, clientY: bounds.bottom - 2 });
       return;
     }
 
@@ -93,35 +88,27 @@ export function RepositoryTab({
     <div
       aria-disabled={tab.unavailable || undefined}
       className={cx(
-        "group/tab relative flex h-11 w-49 min-w-41 max-w-54 items-stretch overflow-hidden rounded-md border transition-[background-color,border-color,box-shadow,opacity] duration-120",
+        "group/tab relative flex min-w-0 max-w-60 shrink-0 items-center border transition-[background-color,border-color,color,opacity] duration-120",
+        // The active tab takes the toolbar's colour and runs into it, so the two read as one surface.
         active
-          ? "border-[color-mix(in_srgb,var(--gc-accent)_40%,var(--gc-border))] bg-background text-foreground shadow-[0_1px_0_color-mix(in_srgb,var(--gc-text)_4%,transparent),0_5px_14px_rgb(0_0_0/16%)] after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-t-full after:bg-accent after:shadow-[0_0_9px_color-mix(in_srgb,var(--gc-accent)_52%,transparent)] after:content-['']"
-          : "border-transparent bg-transparent text-muted hover:border-border/65 hover:bg-foreground/4 hover:text-foreground",
-        tab.unavailable && "border-dashed opacity-[0.68]",
-        "data-[dragging=true]:opacity-35",
+          ? "z-1 h-8.5 rounded-t-lg border-border border-b-0 bg-[color-mix(in_srgb,var(--gc-panel)_91%,black)] text-foreground"
+          : "mb-1 h-7 rounded-md border-transparent bg-foreground/5 text-muted hover:bg-foreground/9 hover:text-foreground",
+        tab.unavailable && "border-dashed opacity-70",
+        tab.unavailable && !active && "border-border",
       )}
       data-repository-tab={tab.id}
-      draggable={!actionsDisabled}
       onAuxClick={(event) => {
         if (event.button === 1 && !actionsDisabled) onClose(tab.id);
       }}
       onContextMenu={openContextMenu}
-      onDragEnd={(event) => {
-        delete event.currentTarget.dataset.dragging;
-      }}
-      onDragStart={(event) => {
-        event.dataTransfer.setData("text/gitcat-tab", tab.id);
-        event.dataTransfer.effectAllowed = "move";
-        event.currentTarget.dataset.dragging = "true";
-      }}
       ref={tabRef}
       title={repositoryTabDescription(tab)}
     >
       <button
         aria-selected={active}
         className={cx(
-          "flex min-w-0 flex-1 cursor-pointer items-center gap-2 bg-transparent py-1 pl-2.25 text-inherit",
-          "focus-visible:bg-row-selected focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
+          "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-[inherit] bg-transparent pl-3 pr-7 text-inherit",
+          "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
         )}
         data-tab-main=""
         onClick={() => onSelect(tab.id)}
@@ -130,38 +117,23 @@ export function RepositoryTab({
         tabIndex={active ? 0 : -1}
         type="button"
       >
+        {tab.kind === "start" ? <House className="shrink-0" size={13} strokeWidth={1.9} /> : null}
         <span
           className={cx(
-            "grid size-6.5 shrink-0 place-items-center rounded-sm border",
-            active
-              ? "border-[color-mix(in_srgb,var(--gc-accent)_36%,var(--gc-border))] bg-[color-mix(in_srgb,var(--gc-accent)_11%,var(--gc-panel))] text-accent"
-              : "border-border/55 bg-background/35 text-muted group-hover/tab:text-foreground",
+            "min-w-0 truncate text-[12px] leading-4",
+            active ? "font-[620]" : "font-[540]",
+            tab.unavailable && "text-danger line-through decoration-danger/50",
           )}
         >
-          <TabIcon size={14} strokeWidth={1.8} />
-        </span>
-        <span className="min-w-0 flex-1 text-left">
-          <span className="flex min-w-0 items-center gap-1.25">
-            <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-[670] leading-4 text-inherit">
-              {tab.label}
-            </strong>
-          </span>
-          <span
-            className={cx(
-              "block overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[9px] leading-3",
-              tab.unavailable ? "text-danger" : active ? "text-muted" : "text-muted/78",
-            )}
-          >
-            {tab.unavailable ? `Unavailable · ${location}` : location}
-          </span>
+          {tab.label}
         </span>
       </button>
       <IconButton
         aria-label={`Close ${tab.label}`}
         className={cx(
-          "mr-1 h-full! w-5.5! rounded-sm! transition-opacity duration-100", 
+          "absolute right-1 size-5.5! rounded-sm! transition-opacity duration-100",
           active
-            ? "opacity-75 hover:opacity-100"
+            ? "opacity-70 hover:opacity-100"
             : "pointer-events-none opacity-0 group-hover/tab:pointer-events-auto group-hover/tab:opacity-70 group-focus-within/tab:pointer-events-auto group-focus-within/tab:opacity-70",
         )}
         disabled={actionsDisabled}

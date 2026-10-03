@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findRepositoryTab } from "../src/app/workspace";
+import { findRepositoryTab, normalizePersistedState } from "../src/app/workspace";
 import { comparablePath, joinPath, parentDirectory, samePath } from "../src/lib/paths";
-import type { RepositoryGroup, RepositoryTab, WorkspaceState } from "../src/lib/types";
+import type { PersistedState, RepositoryGroup, RepositoryTab, WorkspaceState } from "../src/lib/types";
 
 function tab(
   id: string,
@@ -41,17 +41,31 @@ test("a drive root keeps its separator", () => {
 });
 
 test("the tab holding a repository is found however the folder was spelled", () => {
-  const group: RepositoryGroup = {
-    id: "group",
-    name: "Work",
-    collapsed: true,
-    tabs: [tab("b", "C:\\Users\\dev\\beta")],
-  };
-  const state = workspace([tab("start", "", "start"), tab("a", "C:\\Users\\dev\\alpha")], [group]);
+  const state = workspace([
+    tab("start", "", "start"),
+    tab("a", "C:\\Users\\dev\\alpha"),
+    tab("b", "C:\\Users\\dev\\beta"),
+  ]);
   assert.equal(findRepositoryTab(state, "c:/users/dev/alpha")?.id, "a");
   assert.equal(findRepositoryTab(state, "C:\\Users\\dev\\beta\\")?.id, "b");
   assert.equal(findRepositoryTab(state, "C:\\Users\\dev\\gamma"), undefined);
   assert.equal(findRepositoryTab(state, ""), undefined);
+});
+
+test("tabs saved in a repository folder rejoin the single row after the unfiled ones", () => {
+  const group: RepositoryGroup = {
+    id: "group",
+    name: "Work",
+    collapsed: true,
+    tabs: [tab("c", "C:\\c"), tab("d", "C:\\d")],
+  };
+  const saved = { workspace: workspace([tab("a", "C:\\a"), tab("b", "C:\\b")], [group]) } as PersistedState;
+  const { workspace: restored } = normalizePersistedState(saved);
+  assert.deepEqual(restored.groups, []);
+  assert.deepEqual(
+    restored.ungrouped_tabs.map((item) => [item.id, item.order]),
+    [["a", 0], ["b", 1], ["c", 2], ["d", 3]],
+  );
 });
 
 test("path helpers keep their separator", () => {

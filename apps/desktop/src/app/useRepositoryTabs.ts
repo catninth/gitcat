@@ -74,7 +74,6 @@ export function useRepositoryTabs({
                 ? {
                     ...current.workspace,
                     ungrouped_tabs: current.workspace.ungrouped_tabs.map(filled),
-                    groups: current.workspace.groups.map((group) => ({ ...group, tabs: group.tabs.map(filled) })),
                     active_tab_id: tabId,
                 }
                 : {
@@ -127,11 +126,6 @@ export function useRepositoryTabs({
                 workspace: {
                     ...current.workspace,
                     ungrouped_tabs: drop(current.workspace.ungrouped_tabs),
-                    groups: current.workspace.groups.map((group) => ({
-                        ...group,
-                        collapsed: group.tabs.some((tab) => tab.id === tabId) ? false : group.collapsed,
-                        tabs: drop(group.tabs),
-                    })),
                     active_tab_id: tabId,
                 },
             };
@@ -279,11 +273,9 @@ export function useRepositoryTabs({
             return next;
         });
         setPersisted((current) => {
-            const groups = current.workspace.groups.map((group) => ({ ...group, tabs: group.tabs.filter((tab) => tab.id !== tabId) }));
             const ungrouped_tabs = current.workspace.ungrouped_tabs.filter((tab) => tab.id !== tabId);
-            const remaining = [...ungrouped_tabs, ...groups.flatMap((group) => group.tabs)];
-            const active = current.workspace.active_tab_id === tabId ? remaining[0]?.id ?? null : current.workspace.active_tab_id;
-            return { ...current, workspace: { ...current.workspace, ungrouped_tabs, groups, active_tab_id: active } };
+            const active = current.workspace.active_tab_id === tabId ? ungrouped_tabs[0]?.id ?? null : current.workspace.active_tab_id;
+            return { ...current, workspace: { ...current.workspace, ungrouped_tabs, active_tab_id: active } };
         });
     }, [busy, runtime]);
 
@@ -318,30 +310,6 @@ export function useRepositoryTabs({
         }
     }, [busy, showError]);
 
-    const moveRepositoryTab = useCallback((tabId: string, groupId: string | null) => {
-        setPersisted((current) => {
-            let moved = current.workspace.ungrouped_tabs.find((tab) => tab.id === tabId);
-            const ungroupedWithout = current.workspace.ungrouped_tabs.filter((tab) => tab.id !== tabId);
-            const groupsWithout = current.workspace.groups.map((group) => ({
-                ...group,
-                tabs: group.tabs.filter((tab) => {
-                    if (tab.id === tabId) moved = tab;
-                    return tab.id !== tabId;
-                }),
-            }));
-            const movedTab = moved;
-            if (!movedTab) return current;
-            if (groupId === null) {
-                const ungrouped_tabs = [...ungroupedWithout, { ...movedTab, order: ungroupedWithout.length }];
-                return { ...current, workspace: { ...current.workspace, ungrouped_tabs, groups: groupsWithout } };
-            }
-            const groups = groupsWithout.map((group) => group.id === groupId
-                ? { ...group, collapsed: false, tabs: [...group.tabs, { ...movedTab, order: group.tabs.length }] }
-                : group);
-            return { ...current, workspace: { ...current.workspace, ungrouped_tabs: ungroupedWithout, groups } };
-        });
-    }, []);
-
     return {
         adoptRepository,
         chooseRepository,
@@ -349,7 +317,6 @@ export function useRepositoryTabs({
         closeTab,
         createRepository,
         forgetRecentRepository,
-        moveRepositoryTab,
         openRepositoryPath,
         openStartTab,
         reopenClosedRepository,

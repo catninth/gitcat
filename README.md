@@ -37,7 +37,7 @@ Lightweight, Windows-first desktop Git client with Linux builds. Tauri v2 + Reac
 ## Key features
 
 - Start page when no repository is open: searchable recent repositories with per-entry removal, plus Open, Clone, and Create actions. Create supports a target path, default branch name, and a `.gitignore` template; hosted providers are listed but not yet available.
-- Repository tabs in folders or ungrouped: drag and drop, app-owned context actions, aliases, browser-style switching, automatic restoration, and reopening the most recently closed tab.
+- Repository tabs in a single row: app-owned context actions, aliases, browser-style switching, a searchable overview of every open tab, automatic restoration, and reopening the most recently closed tab.
 - Tabs whose folder moved or is no longer a Git repository open a dedicated unavailable-repository page with retry, locate, and close actions instead of failing silently.
 - LOCAL, REMOTE, and TAGS sidebar with filtering, a current-branch marker, `/`-segment folders for local branches, remote-grouped remote branches with owner avatars, and a right-click branch menu for pull, push, branch creation, rename, safe deletion, and name copy.
 - Double-clicking a remote branch checks it out directly as a local tracking branch, with no intermediate name prompt.

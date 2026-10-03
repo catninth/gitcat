@@ -13,8 +13,6 @@ export interface RuntimeRepository {
 }
 
 export type PromptState =
-    | { kind: "create_group"; tabId?: string }
-    | { kind: "rename_group"; groupId: string; current: string }
     | { kind: "alias_tab"; tabId: string; current: string }
     | { kind: "create_branch"; startOid: string }
     | { kind: "rename_branch"; branch: BranchInfo }
@@ -47,7 +45,6 @@ export interface TabMenuState {
     x: number;
     y: number;
     tab: TabView;
-    groupId: string | null;
 }
 
 export interface BranchMenuState {

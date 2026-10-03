@@ -69,14 +69,6 @@ export function useConflictPreflight({
                         ? { ...tab, conflict_target: target, conflict_target_disabled: target === null }
                         : tab
                 )),
-                groups: current.workspace.groups.map((group) => ({
-                    ...group,
-                    tabs: group.tabs.map((tab) => (
-                        tab.id === activeTabId
-                            ? { ...tab, conflict_target: target, conflict_target_disabled: target === null }
-                            : tab
-                    )),
-                })),
             },
         }));
     }, [activeTabId]);

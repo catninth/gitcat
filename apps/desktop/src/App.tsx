@@ -14,7 +14,6 @@ import { ConfirmBar, Toolbar } from "./components/toolbar";
 import {
     TopTabs,
     type RepositoryTabContextMenuRequest,
-    type TabGroupView,
     type TabView,
 } from "./components/top-tabs";
 import { UnavailableRepositoryView } from "./components/UnavailableRepositoryView";
@@ -375,7 +374,6 @@ function App() {
         closeTab,
         createRepository,
         forgetRecentRepository,
-        moveRepositoryTab,
         openRepositoryPath,
         openStartTab,
         reopenClosedRepository,
@@ -628,7 +626,6 @@ function App() {
         copySha,
         defaultPullMode: persisted.settings.default_pull_mode,
         detailsOid: details?.oid,
-        moveRepositoryTab,
         pullActiveRepository,
         runMutation,
         setBranchMenu,
@@ -713,16 +710,10 @@ function App() {
         conflictCount: tab.id === activeTabId ? activeConflictCount : 0,
         unavailable: tab.kind !== "start" && !runtime[tab.id],
     }), [activeConflictCount, activeTabId, runtime, snapshot]);
-    const ungroupedTabs = useMemo(
+    const tabViews = useMemo(
         () => persisted.workspace.ungrouped_tabs.map(toTabView),
         [persisted.workspace.ungrouped_tabs, toTabView],
     );
-    const tabGroups = useMemo<TabGroupView[]>(() => persisted.workspace.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        collapsed: group.collapsed,
-        tabs: group.tabs.map(toTabView),
-    })), [persisted.workspace.groups, toTabView]);
 
     const graphMatches = useMemo(() => new Set(searchOids), [searchOids]);
     const iconUrlsByRemote = useMemo(
@@ -825,16 +816,9 @@ function App() {
             <TopTabs
                 activeTabId={activeTabId ?? undefined}
                 actionsDisabled={busy}
-                groups={tabGroups}
-                ungroupedTabs={ungroupedTabs}
+                tabs={tabViews}
                 onClose={closeTab}
-                onCreateGroup={() => setPrompt({ kind: "create_group" })}
-                onMoveTab={moveRepositoryTab}
                 onOpen={openStartTab}
-                onRenameGroup={(groupId) => {
-                    const group = persisted.workspace.groups.find((item) => item.id === groupId);
-                    if (group) setPrompt({ kind: "rename_group", groupId, current: group.name });
-                }}
                 onSelect={activateRepositoryTab}
                 onTabContextMenu={(request: RepositoryTabContextMenuRequest) => {
                     setCommitMenu(null);
@@ -842,10 +826,8 @@ function App() {
                         x: request.clientX,
                         y: request.clientY,
                         tab: request.tab,
-                        groupId: request.groupId,
                     });
                 }}
-                onToggleGroup={(groupId) => setPersisted((current) => ({ ...current, workspace: { ...current.workspace, groups: current.workspace.groups.map((group) => group.id === groupId ? { ...group, collapsed: !group.collapsed } : group) } }))}
             />
 
             {!activeRepository ? (
