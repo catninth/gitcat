@@ -41,7 +41,7 @@ import type {
     StashEntry,
 } from "./lib/types";
 import { currentBranch, remoteIconUrls } from "./app/branches";
-import { withForgeOverrides } from "./lib/forge";
+import { withForgeLocations, withForgeOverrides } from "./lib/forge";
 import { openExternal } from "./lib/platform";
 import { useAvatars } from "./app/useAvatars";
 import { useForgeStatus } from "./app/useForgeStatus";
@@ -69,6 +69,7 @@ import { usePanelLayout } from "./app/usePanelLayout";
 import { useRepositoryCommands } from "./app/useRepositoryCommands";
 import { useRepositoryOverview } from "./app/useRepositoryOverview";
 import { useRepositoryTabs } from "./app/useRepositoryTabs";
+import { useForgeLocations } from "./app/useForgeLocations";
 import { useInterfaceZoom } from "./app/useInterfaceZoom";
 import { useToasts } from "./app/useToasts";
 import { useWorkspaceBootstrap } from "./app/useWorkspaceBootstrap";
@@ -86,9 +87,16 @@ function App() {
     // Settings name the forge for hosts the backend cannot recognise, so
     // every consumer below reads an already-corrected snapshot.
     const forgeOverrides = persisted.settings.forge_overrides;
-    const snapshot = useMemo(
+    const overriddenSnapshot = useMemo(
         () => withForgeOverrides(rawSnapshot, forgeOverrides),
         [forgeOverrides, rawSnapshot],
+    );
+    // A transferred repository still answers at its cloned URL; the owner icon,
+    // links and pull request matching follow where it lives now.
+    const forgeLocations = useForgeLocations(overriddenSnapshot);
+    const snapshot = useMemo(
+        () => withForgeLocations(overriddenSnapshot, forgeLocations),
+        [forgeLocations, overriddenSnapshot],
     );
     const [history, setHistory] = useState<HistoryPage | null>(null);
     const [stashes, setStashes] = useState<StashEntry[]>([]);

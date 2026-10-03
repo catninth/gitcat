@@ -737,6 +737,16 @@ async fn forge_pull_requests(
     forge.pull_requests(&repo, refresh).await
 }
 
+/// Where a remote's repository lives now, which differs from its URL once the
+/// repository has been transferred or renamed.
+#[tauri::command]
+async fn forge_repository_location(
+    forge: State<'_, ForgeService>,
+    repo: ForgeRepo,
+) -> ApiResult<ForgeRepo> {
+    forge.location(&repo).await
+}
+
 /// Starts a device-flow sign-in and returns what the user has to type where.
 /// The device code itself stays in the backend.
 #[tauri::command]
@@ -972,6 +982,7 @@ pub fn run() {
             forge_credentials,
             forge_pull_requests,
             forge_checks,
+            forge_repository_location,
             forge_login_start,
             forge_login_poll,
             forge_sign_out,

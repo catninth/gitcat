@@ -11,9 +11,11 @@ import {
     forgeCommitUrl,
     forgeOwnerIconUrl,
     forgeRepoFor,
+    forgeRepoKey,
     groupByOwner,
     isForgeKind,
     pullRequestsByBranch,
+    withForgeLocations,
     withForgeOverrides,
 } from "../src/lib/forge";
 import type {
@@ -328,4 +330,34 @@ test("owners group case-insensitively, and without an account nothing leads", ()
 
     assert.deepEqual(groups.map((group) => group.owner), ["acme", "Riftmarch"]);
     assert.equal(groups[1].repositories.length, 2);
+});
+
+test("a transferred repository takes the owner the service names, not its cloned url", () => {
+    const cloned = remote({
+        fetch_url: "https://github.com/RisDN/gitcat.git",
+        push_url: "https://github.com/RisDN/gitcat.git",
+        url: { scheme: "https", host: "github.com", path: "RisDN/gitcat", owner: "RisDN", repo: "gitcat" },
+        web_url: "https://github.com/RisDN/gitcat",
+    });
+    const repo = forgeRepoFor(cloned)!;
+    const locations = new Map([[forgeRepoKey(repo), { ...repo, owner: "catninth" }]]);
+
+    const moved = withForgeLocations(snapshot(cloned, remote({ name: "upstream" })), locations)!;
+    const origin = moved.remotes[0];
+    assert.equal(origin.url?.owner, "catninth");
+    assert.equal(origin.url?.path, "catninth/gitcat");
+    assert.equal(origin.web_url, "https://github.com/catninth/gitcat");
+    // Git keeps using what it was cloned with; the redirect still serves it.
+    assert.equal(origin.fetch_url, "https://github.com/RisDN/gitcat.git");
+    assert.equal(remoteIconUrls(moved.remotes).get("origin"), "https://github.com/catninth.png?size=32");
+    // A remote nobody asked about is left as it was.
+    assert.equal(moved.remotes[1].url?.owner, "ikoli");
+});
+
+test("a repository that has not moved keeps the snapshot it came in", () => {
+    const origin = remote();
+    const repo = forgeRepoFor(origin)!;
+    const unchanged = snapshot(origin);
+    assert.equal(withForgeLocations(unchanged, new Map([[forgeRepoKey(repo), repo]])), unchanged);
+    assert.equal(withForgeLocations(unchanged, new Map()), unchanged);
 });

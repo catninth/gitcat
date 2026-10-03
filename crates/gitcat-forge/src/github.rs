@@ -122,6 +122,22 @@ impl GitHubClient {
         Ok(roll_up(oid, &statuses.statuses, &runs.check_runs))
     }
 
+    /// The owner and name a repository answers to now, as `(owner, name)`.
+    ///
+    /// A transferred or renamed repository keeps answering at its old path:
+    /// the service redirects the request, and the client follows it. A clone
+    /// made before the move therefore still works while its remote URL names
+    /// an owner the repository no longer belongs to.
+    pub async fn repository_location(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> ApiResult<Option<(String, String)>> {
+        let path = format!("/repos/{}/{}", encode(owner), encode(repo));
+        let item: RepoListItem = self.get_json(&path).await?;
+        Ok(location(item))
+    }
+
     /// One page of the repositories the signed-in account can reach.
     ///
     /// `affiliation` is what makes this the list a person expects: their own
@@ -320,6 +336,12 @@ fn repository(item: RepoListItem) -> Option<ForgeRepository> {
         ssh_url: item.ssh_url.filter(|url| !url.is_empty()),
         updated_at: item.pushed_at.or(item.updated_at),
     })
+}
+
+fn location(item: RepoListItem) -> Option<(String, String)> {
+    let owner = item.owner.and_then(|owner| owner.login)?;
+    let name = item.name?;
+    (!owner.is_empty() && !name.is_empty()).then_some((owner, name))
 }
 
 /// Collapses both report kinds into one badge.
@@ -722,6 +744,22 @@ mod tests {
         assert_eq!(repos[0].owner, "RisDN");
         // The last commit sorts a working list better than a settings change.
         assert_eq!(repos[0].updated_at.as_deref(), Some("2026-08-27T10:00:00Z"));
+    }
+
+    #[test]
+    fn a_moved_repository_reports_where_it_lives_now() {
+        // What `/repos/RisDN/gitcat` answers after the redirect is followed.
+        let item: RepoListItem = serde_json::from_str(
+            r#"{"name":"gitcat","full_name":"catninth/gitcat","owner":{"login":"catninth"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            location(item),
+            Some(("catninth".to_owned(), "gitcat".to_owned()))
+        );
+
+        let ownerless: RepoListItem = serde_json::from_str(r#"{"name":"gitcat"}"#).unwrap();
+        assert_eq!(location(ownerless), None);
     }
 
     #[test]

@@ -33,6 +33,10 @@ const REPOS_TTL: Duration = Duration::from_secs(300);
 /// Five pages of a hundred. Past that a person searches rather than scrolls,
 /// and the list is only there to be searched.
 const MAX_REPO_PAGES: u32 = 5;
+/// A repository moves once in a long while, so one answer per session is
+/// plenty; the TTL only keeps a move made mid-session from being missed forever.
+const LOCATION_TTL: Duration = Duration::from_secs(60 * 60);
+const MAX_CACHED_LOCATIONS: usize = 64;
 
 struct Cached<T> {
     stored: Instant,
@@ -45,6 +49,7 @@ pub struct ForgeService {
     pulls: Mutex<HashMap<String, Cached<Vec<PullRequestInfo>>>>,
     checks: Mutex<HashMap<String, Cached<CheckSummary>>>,
     repos: Mutex<HashMap<String, Cached<Vec<ForgeRepository>>>>,
+    locations: Mutex<HashMap<String, Cached<ForgeRepo>>>,
 }
 
 impl ForgeService {
@@ -60,7 +65,54 @@ impl ForgeService {
             pulls: Mutex::new(HashMap::new()),
             checks: Mutex::new(HashMap::new()),
             repos: Mutex::new(HashMap::new()),
+            locations: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Where `repo` lives now.
+    ///
+    /// A remote URL is written once, at clone time, and the service keeps
+    /// redirecting it after the repository is transferred or renamed. The
+    /// owner parsed from it then names an account the repository left, which
+    /// draws the wrong owner icon and hides every pull request whose head owner
+    /// is the new one. A repository the service will not describe -- private
+    /// without a credential, or gone -- is answered as itself: there is nothing
+    /// better to say about it, and the remote still works.
+    pub async fn location(&self, repo: &ForgeRepo) -> ApiResult<ForgeRepo> {
+        let Some(client) = self.client(repo).await else {
+            return Ok(repo.clone());
+        };
+        let key = repo_key(repo);
+        if let Some(cached) = read_cache(&self.locations, &key, LOCATION_TTL) {
+            return Ok(cached);
+        }
+
+        let mut found = client.repository_location(&repo.owner, &repo.repo).await;
+        if rejected(&found) {
+            if let Some(renewed) = self.renewed_client(&repo.host).await {
+                found = renewed.repository_location(&repo.owner, &repo.repo).await;
+            }
+        }
+        let location = match found {
+            Ok(Some((owner, name))) => ForgeRepo {
+                host: repo.host.clone(),
+                owner,
+                repo: name,
+                forge: repo.forge,
+            },
+            Ok(None) => repo.clone(),
+            Err(error) if error.code == ErrorCode::InvalidRequest => repo.clone(),
+            // Unreachable or rate limited: nothing learned, so nothing cached.
+            Err(error) => return Err(error),
+        };
+        write_cache(
+            &self.locations,
+            key,
+            location.clone(),
+            MAX_CACHED_LOCATIONS,
+            LOCATION_TTL,
+        );
+        Ok(location)
     }
 
     /// The pull requests open against `repo`.
@@ -265,6 +317,10 @@ impl ForgeService {
         if let Ok(mut repos) = self.repos.lock() {
             repos.remove(&host);
         }
+        // A private repository answers differently once a credential reaches it.
+        if let Ok(mut locations) = self.locations.lock() {
+            locations.retain(|key, _| !key.starts_with(&prefix));
+        }
     }
 
     /// A client carrying a freshly renewed credential, for a request the
@@ -424,6 +480,39 @@ mod tests {
                 .expect("no error")
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn a_forge_without_a_client_is_where_its_remote_says() {
+        let service = service();
+        let gitlab = repo(ForgeKind::GitLab);
+        assert_eq!(service.location(&gitlab).await.expect("no error"), gitlab);
+    }
+
+    #[tokio::test]
+    async fn a_known_location_is_answered_from_the_cache() {
+        let service = service();
+        let moved = ForgeRepo {
+            owner: "catninth".into(),
+            ..repo(ForgeKind::GitHub)
+        };
+        write_cache(
+            &service.locations,
+            repo_key(&repo(ForgeKind::GitHub)),
+            moved.clone(),
+            MAX_CACHED_LOCATIONS,
+            LOCATION_TTL,
+        );
+        assert_eq!(
+            service
+                .location(&repo(ForgeKind::GitHub))
+                .await
+                .expect("no error"),
+            moved
+        );
+
+        service.forget_host("github.com");
+        assert!(service.locations.lock().expect("lock").is_empty());
     }
 
     #[tokio::test]

@@ -14,6 +14,12 @@ export async function fetchPullRequests(
     return invokeTauri<PullRequestInfo[]>("forge_pull_requests", { repo, refresh });
 }
 
+/** Where a remote's repository lives now; itself when it has not moved. */
+export async function fetchRepositoryLocation(repo: ForgeRepo): Promise<ForgeRepo> {
+    if (!isTauriEnvironment()) return repo;
+    return invokeTauri<ForgeRepo>("forge_repository_location", { repo });
+}
+
 /** Rolled-up check state for a handful of tips. The backend caps the batch. */
 export async function fetchChecks(
     repo: ForgeRepo,

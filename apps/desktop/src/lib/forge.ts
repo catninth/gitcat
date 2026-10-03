@@ -65,6 +65,46 @@ export function withForgeOverrides(
     return changed ? { ...snapshot, remotes } : snapshot;
 }
 
+export function forgeRepoKey(repo: ForgeRepo): string {
+    return `${repo.host}/${repo.owner}/${repo.repo}/${repo.forge}`;
+}
+
+// A transferred or renamed repository keeps answering at the path its remote
+// URL was cloned with, so the owner parsed from that URL can name an account
+// the repository has left. `locations` holds where the service says each one
+// lives now, keyed by `forgeRepoKey` of the URL's own reading. Only the parsed
+// parts and the home page move: the fetch and push URLs are what Git uses, and
+// they keep working through the service's redirect.
+export function withForgeLocations(
+    snapshot: RepositorySnapshot | null,
+    locations: ReadonlyMap<string, ForgeRepo>,
+): RepositorySnapshot | null {
+    if (!snapshot || locations.size === 0) return snapshot;
+    let changed = false;
+    const remotes = snapshot.remotes.map((remote) => {
+        const repo = forgeRepoFor(remote);
+        const location = repo ? locations.get(forgeRepoKey(repo)) : undefined;
+        if (!repo || !remote.url || !location) return remote;
+        if (location.owner === repo.owner && location.repo === repo.repo) return remote;
+        changed = true;
+        const oldPath = `/${repo.owner}/${repo.repo}`;
+        const webUrl = remote.web_url?.replace(/\/+$/, "");
+        return {
+            ...remote,
+            url: {
+                ...remote.url,
+                owner: location.owner,
+                repo: location.repo,
+                path: `${location.owner}/${location.repo}`,
+            },
+            web_url: webUrl?.endsWith(oldPath)
+                ? `${webUrl.slice(0, -oldPath.length)}/${location.owner}/${location.repo}`
+                : remote.web_url,
+        };
+    });
+    return changed ? { ...snapshot, remotes } : snapshot;
+}
+
 // Web layouts diverge below the repository home page: GitLab nests everything
 // under `/-/`, Bitbucket pluralises commits, Gitea names the ref kind, and
 // Azure passes the branch as a query parameter. An unrecognised host follows
