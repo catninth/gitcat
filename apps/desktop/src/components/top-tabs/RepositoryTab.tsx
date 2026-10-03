@@ -1,6 +1,10 @@
 import { House, X } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { cx } from "../../lib";
 import { IconButton } from "../ui";
@@ -30,6 +34,9 @@ export function RepositoryTab({
   onClose,
   onContextMenu,
   onNavigate,
+  onDragStart,
+  onShift,
+  dragging,
 }: {
   tab: TabView;
   active: boolean;
@@ -38,6 +45,9 @@ export function RepositoryTab({
   onClose: (tabId: string) => void;
   onContextMenu: (request: RepositoryTabContextMenuRequest) => void;
   onNavigate: (tabId: string, direction: "previous" | "next" | "first" | "last") => void;
+  onDragStart: (tabId: string, event: ReactPointerEvent<HTMLDivElement>) => void;
+  onShift: (tabId: string, step: -1 | 1) => void;
+  dragging: boolean;
 }) {
   const tabRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +83,12 @@ export function RepositoryTab({
       return;
     }
 
+    if (event.ctrlKey && event.shiftKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      event.preventDefault();
+      onShift(tab.id, event.key === "ArrowLeft" ? -1 : 1);
+      return;
+    }
+
     const direction = {
       ArrowLeft: "previous",
       ArrowRight: "next",
@@ -95,19 +111,27 @@ export function RepositoryTab({
           : "mb-1 h-7 rounded-md border-transparent bg-foreground/5 text-muted hover:bg-foreground/9 hover:text-foreground",
         tab.unavailable && "border-dashed opacity-70",
         tab.unavailable && !active && "border-border",
+        dragging ? "z-10 cursor-grabbing shadow-[0_4px_14px_rgb(0_0_0/35%)]" : "cursor-pointer",
       )}
       data-repository-tab={tab.id}
       onAuxClick={(event) => {
         if (event.button === 1 && !actionsDisabled) onClose(tab.id);
       }}
       onContextMenu={openContextMenu}
+      onPointerDown={(event) => {
+        // Reordering only rearranges the row, so it stays available while a
+        // command runs.
+        if (event.button !== 0) return;
+        if ((event.target as HTMLElement).closest("[data-tab-close]")) return;
+        onDragStart(tab.id, event);
+      }}
       ref={tabRef}
       title={repositoryTabDescription(tab)}
     >
       <button
         aria-selected={active}
         className={cx(
-          "flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-[inherit] bg-transparent pl-3 pr-7 text-inherit",
+          "flex h-full min-w-0 flex-1 cursor-[inherit] items-center gap-1.5 rounded-[inherit] bg-transparent pl-3 pr-7 text-inherit",
           "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent",
         )}
         data-tab-main=""
@@ -130,6 +154,7 @@ export function RepositoryTab({
       </button>
       <IconButton
         aria-label={`Close ${tab.label}`}
+        data-tab-close=""
         className={cx(
           "absolute right-1 size-5.5! rounded-sm! transition-opacity duration-100",
           active

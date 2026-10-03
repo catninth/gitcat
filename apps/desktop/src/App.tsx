@@ -374,6 +374,7 @@ function App() {
         closeTab,
         createRepository,
         forgetRecentRepository,
+        moveRepositoryTab,
         openRepositoryPath,
         openStartTab,
         reopenClosedRepository,
@@ -819,6 +820,7 @@ function App() {
                 tabs={tabViews}
                 onClose={closeTab}
                 onOpen={openStartTab}
+                onReorder={moveRepositoryTab}
                 onSelect={activateRepositoryTab}
                 onTabContextMenu={(request: RepositoryTabContextMenuRequest) => {
                     setCommitMenu(null);

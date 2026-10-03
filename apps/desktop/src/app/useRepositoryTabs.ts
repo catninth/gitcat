@@ -310,6 +310,20 @@ export function useRepositoryTabs({
         }
     }, [busy, showError]);
 
+    const moveRepositoryTab = useCallback((tabId: string, toIndex: number) => {
+        setPersisted((current) => {
+            const tabs = [...current.workspace.ungrouped_tabs];
+            const from = tabs.findIndex((tab) => tab.id === tabId);
+            if (from < 0 || from === toIndex) return current;
+            const [moved] = tabs.splice(from, 1);
+            tabs.splice(Math.min(Math.max(toIndex, 0), tabs.length), 0, moved);
+            return {
+                ...current,
+                workspace: { ...current.workspace, ungrouped_tabs: tabs.map((tab, order) => ({ ...tab, order })) },
+            };
+        });
+    }, []);
+
     return {
         adoptRepository,
         chooseRepository,
@@ -317,6 +331,7 @@ export function useRepositoryTabs({
         closeTab,
         createRepository,
         forgetRecentRepository,
+        moveRepositoryTab,
         openRepositoryPath,
         openStartTab,
         reopenClosedRepository,
