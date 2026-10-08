@@ -1,5 +1,6 @@
-import { House, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Folder, GitBranch, House, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -50,6 +51,25 @@ export function RepositoryTab({
   dragging: boolean;
 }) {
   const tabRef = useRef<HTMLDivElement>(null);
+  const tooltipTimer = useRef<number | undefined>(undefined);
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null);
+
+  const hideTooltip = () => {
+    window.clearTimeout(tooltipTimer.current);
+    setTooltipPosition(null);
+  };
+
+  const scheduleTooltip = () => {
+    window.clearTimeout(tooltipTimer.current);
+    tooltipTimer.current = window.setTimeout(() => {
+      const bounds = tabRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const left = Math.max(8, Math.min(bounds.left, window.innerWidth - 468));
+      setTooltipPosition({ left, top: bounds.bottom + 4 });
+    }, 450);
+  };
+
+  useEffect(() => () => window.clearTimeout(tooltipTimer.current), []);
 
   useEffect(() => {
     const tabElement = tabRef.current;
@@ -120,16 +140,19 @@ export function RepositoryTab({
       }}
       onContextMenu={openContextMenu}
       onPointerDown={(event) => {
+        hideTooltip();
         // Reordering only rearranges the row, so it stays available while a
         // command runs.
         if (event.button !== 0) return;
         if ((event.target as HTMLElement).closest("[data-tab-close]")) return;
         onDragStart(tab.id, event);
       }}
+      onPointerEnter={scheduleTooltip}
+      onPointerLeave={hideTooltip}
       ref={tabRef}
-      title={repositoryTabDescription(tab)}
     >
       <button
+        aria-description={repositoryTabDescription(tab)}
         aria-selected={active}
         className={cx(
           "flex h-full min-w-0 flex-1 cursor-[inherit] items-center gap-1.5 rounded-[inherit] bg-transparent pl-3 pr-7 text-inherit",
@@ -169,6 +192,45 @@ export function RepositoryTab({
       >
         <X size={12} />
       </IconButton>
+      {tooltipPosition && !dragging ? createPortal(<RepositoryTabTooltip position={tooltipPosition} tab={tab} />, document.body) : null}
     </div>
+  );
+}
+
+function RepositoryTabTooltip({ tab, position }: { tab: TabView; position: { left: number; top: number } }) {
+  const states: string[] = [];
+  if (tab.dirty) states.push("Uncommitted changes");
+  if (tab.conflictCount) {
+    states.push(`${tab.conflictCount} unresolved conflict${tab.conflictCount === 1 ? "" : "s"}`);
+  }
+  if (tab.unavailable) states.push("Repository unavailable");
+
+  return (
+    <span
+      className="pointer-events-none fixed z-260 flex max-w-[min(460px,calc(100vw-16px))] flex-col gap-1 rounded-[5px] border border-border bg-menu px-2.5 py-2 text-foreground shadow-panel"
+      role="tooltip"
+      style={position}
+    >
+      <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-[620] leading-4">
+        {tab.kind === "start" ? (
+          <House className="shrink-0 text-muted" size={13} strokeWidth={1.9} />
+        ) : (
+          <GitBranch className="shrink-0 text-muted" size={13} strokeWidth={1.9} />
+        )}
+        <span className="min-w-0 truncate">{tab.label}</span>
+      </span>
+      {tab.kind === "start" ? (
+        <span className="text-[11px] leading-4 text-muted">Start page</span>
+      ) : tab.path ? (
+        <span className="flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-muted">
+          <Folder className="shrink-0" size={12} strokeWidth={1.9} />
+          {/* Right-to-left so a long path loses its start, keeping the folders nearest the repository. */}
+          <span className="min-w-0 truncate text-left" dir="rtl">
+            <bdi dir="ltr">{tab.path}</bdi>
+          </span>
+        </span>
+      ) : null}
+      {states.length ? <span className="text-[11px] leading-4 text-muted">{states.join(" · ")}</span> : null}
+    </span>
   );
 }
