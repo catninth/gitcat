@@ -42,7 +42,7 @@ export function Avatar({ image, initials }: { image?: string; initials?: string 
 export function ParentRefs({ parentOids, onJump }: { parentOids: readonly string[]; onJump?: (oid: string) => void }) {
   if (parentOids.length === 0) return null;
   return (
-    <div className="ml-auto flex shrink-0 items-start gap-1 text-[10px] text-muted">
+    <div className="ml-auto flex shrink-0 items-baseline gap-1 text-[11px] text-muted">
       <span>{parentOids.length > 1 ? "parents:" : "parent:"}</span>
       <span className="flex flex-col items-end gap-0.5">
         {parentOids.map((oid) => (onJump ? (
