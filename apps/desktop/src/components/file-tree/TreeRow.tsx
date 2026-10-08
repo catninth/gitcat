@@ -1,4 +1,4 @@
-import { ArrowRight, Copy, FileType, Minus, Plus, TriangleAlert } from "lucide-react";
+import { Copy, FilePen, FileType, Minus, Plus, TriangleAlert } from "lucide-react";
 import { PencilFilled } from "../ui/PencilFilled";
 import type { LucideIcon } from "lucide-react";
 import type { ComponentPropsWithRef } from "react";
@@ -13,7 +13,7 @@ const FILE_STATUS_TONE: Record<string, string> = {
   unmerged: "text-warning",
   modified: "text-warning",
   type_changed: "text-warning",
-  renamed: "text-warning",
+  renamed: "text-accent",
   copied: "text-warning",
 };
 
@@ -22,7 +22,7 @@ const FILE_STATUS_ICON: Record<string, LucideIcon> = {
   untracked: Plus,
   modified: PencilFilled,
   deleted: Minus,
-  renamed: ArrowRight,
+  renamed: FilePen,
   copied: Copy,
   type_changed: FileType,
   unmerged: TriangleAlert,

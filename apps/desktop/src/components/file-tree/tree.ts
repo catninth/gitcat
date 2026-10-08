@@ -8,7 +8,6 @@ export interface FileTreeItem<T> {
   data: T;
   status: string;
   statusLabel: string;
-  binary?: boolean;
   additions?: number | null;
   deletions?: number | null;
 }

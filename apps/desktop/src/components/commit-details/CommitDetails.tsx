@@ -90,7 +90,6 @@ export function CommitDetails({ details, avatarImages, selectedPath, busy = fals
         data: file,
         status: file.status,
         statusLabel: STATUS_LABEL[file.status] ?? "M",
-        binary: file.binary,
         additions: file.additions,
         deletions: file.deletions,
     })), [details.files]);

@@ -168,7 +168,6 @@ export function FileTree<T>({
             <StatusIcon aria-hidden="true" size={15} strokeWidth={2.6} />
           </b>
           <EntryName>{label}</EntryName>
-          {item.binary ? <small className="text-[11px] text-warning">binary</small> : null}
         </TreeEntry>
         {renderAction ? <RowAction pinned={unmerged}>{renderAction(item.data)}</RowAction> : null}
       </TreeRow>
