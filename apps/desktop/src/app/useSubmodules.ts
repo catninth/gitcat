@@ -30,7 +30,8 @@ export function useSubmodules({
     const [batchAction, setBatchAction] = useState<SubmoduleSyncAction | null>(null);
     const [batchResults, setBatchResults] = useState<SubmoduleBatchItem[]>([]);
     const [batchRunning, setBatchRunning] = useState(false);
-    const modules = data && data.repositoryId === repositoryId ? data.modules : [];
+    const loaded = data !== null && data.repositoryId === repositoryId;
+    const modules = loaded ? data.modules : [];
 
     const refresh = useCallback(async () => {
         if (!repositoryId) return;
@@ -140,7 +141,10 @@ export function useSubmodules({
         ? modules.find((module) => module.path === dialog.submodule.path) ?? dialog.submodule
         : null;
     return {
-        modules, loading, error, dialog, dialogError, working, selected,
+        modules, error,
+        // Every overview refresh reloads the list; only the first load for a
+        // repository is worth announcing, or an empty list flickers each time.
+        loading: loading && !loaded, dialog, dialogError, working, selected,
         batchAction, batchResults, batchRunning, refresh, closeDialog, submit, remove, runBatch, open, update,
         add: () => showDialog({ kind: "add" }),
         edit: (submodule: SubmoduleInfo) => showDialog({ kind: "edit", submodule }),
