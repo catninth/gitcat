@@ -73,6 +73,9 @@ export function FileTree<T>({
   const collapseTokenRef = useRef(collapse?.token ?? 0);
   const skipSelectionExpandRef = useRef<string | undefined>(undefined);
   const forcedCollapseRef = useRef<string | null>(initialForcedCollapse());
+  // A status refresh hands over new items for the same selection; revealing it
+  // again would undo the user's scrolling and folder toggles on every refresh.
+  const revealedRef = useRef<string | undefined>(undefined);
 
   const forceCollapse = (target: string) => {
     const previous = forcedCollapseRef.current;
@@ -103,10 +106,15 @@ export function FileTree<T>({
   }, [collapse, selectedId]);
 
   useEffect(() => {
-    if (mode !== "tree" || !selectedId) return;
+    if (mode !== "tree" || !selectedId) {
+      revealedRef.current = undefined;
+      return;
+    }
     if (skipSelectionExpandRef.current === selectedId) return;
+    if (revealedRef.current === selectedId) return;
     const selected = items.find((item) => item.id === selectedId);
     if (!selected) return;
+    revealedRef.current = selectedId;
     if (isForcedCollapsed(forcedCollapseRef.current, normalizePath(selected.path))) {
       skipSelectionExpandRef.current = selectedId;
       return;
