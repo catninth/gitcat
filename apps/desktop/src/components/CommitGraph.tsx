@@ -387,14 +387,21 @@ function buildEdgePath(
   endY: number,
   parentVisible: boolean,
   mergeEdge: boolean,
-  mergeLaneX = endX,
+  mergeRoute?: { x: number; corner: number },
 ): string {
-  if (mergeEdge && parentVisible && mergeLaneX !== endX) {
+  if (mergeEdge && parentVisible && mergeRoute && mergeRoute.x !== endX) {
+    const mergeLaneX = mergeRoute.x;
     const corner = edgeCorner(startX, startY, mergeLaneX, endY);
     const approachX = mergeLaneX < startX ? mergeLaneX + corner : mergeLaneX - corner;
+    // Keep the existing span's final bend even when the merge is one row
+    // above its parent; the shorter approach must not shrink that bend.
+    const endCorner = mergeRoute.corner;
+    const turnX = endX < mergeLaneX ? mergeLaneX - endCorner : mergeLaneX + endCorner;
     return `M ${startX} ${startY} L ${approachX} ${startY}`
       + ` Q ${mergeLaneX} ${startY}, ${mergeLaneX} ${startY + corner}`
-      + ` ${buildEdgePath(mergeLaneX, startY + corner, endX, endY, true, false)}`;
+      + ` L ${mergeLaneX} ${endY - endCorner}`
+      + ` Q ${mergeLaneX} ${endY}, ${turnX} ${endY}`
+      + ` L ${endX} ${endY}`;
   }
   if (startX === endX) return `M ${startX} ${startY} L ${endX} ${endY}`;
 
@@ -445,10 +452,11 @@ export function buildGraphGeometry(
   }
 
   const paths: GraphPath[] = [];
-  const firstParentRoutes = new Map<string, { lane: number; color: number }>();
+  const firstParentRoutes = new Map<string, { lane: number; color: number; corner: number }>();
   for (let index = 0; index < commits.length; index += 1) {
     const commit = commits[index];
     const commitPaths: GraphPath[] = [];
+    let firstParentCorner = 0;
 
     for (let edgeIndex = 0; edgeIndex < commit.graph.edges.length; edgeIndex += 1) {
       const edge = commit.graph.edges[edgeIndex];
@@ -460,11 +468,15 @@ export function buildGraphGeometry(
       const startY = rowY(index);
       const endX = laneX(endLane, maxX);
       const endY = Math.min(rowY(targetIndex), commits.length * ROW_STRIDE - ROW_GAP);
+      if (edgeIndex === 0) firstParentCorner = edgeCorner(startX, startY, endX, endY);
       // Join the existing branch span, which may bend into the parent's lane
       // only at its endpoint; turning early can run through unrelated nodes.
       const trunk = edge.merge && parentVisible ? firstParentRoutes.get(edge.parent_oid) : undefined;
       const mergeLane = trunk?.lane ?? endLane;
-      const data = buildEdgePath(startX, startY, endX, endY, parentVisible, edge.merge, laneX(mergeLane, maxX));
+      const data = buildEdgePath(
+        startX, startY, endX, endY, parentVisible, edge.merge,
+        trunk ? { x: laneX(trunk.lane, maxX), corner: trunk.corner } : undefined,
+      );
       const color = trunk?.color ?? getGraphEdgeColor(commit, edgeIndex, colors);
 
       const path = {
@@ -482,7 +494,11 @@ export function buildGraphGeometry(
 
     const firstParent = commit.graph.edges[0];
     if (firstParent && !commit.stash) {
-      firstParentRoutes.set(firstParent.parent_oid, { lane: firstParent.from_lane, color: commitPaths[0].color });
+      firstParentRoutes.set(firstParent.parent_oid, {
+        lane: firstParent.from_lane,
+        color: commitPaths[0].color,
+        corner: firstParentCorner,
+      });
     }
 
     // SVG paints later paths on top. Prepending each older row keeps the

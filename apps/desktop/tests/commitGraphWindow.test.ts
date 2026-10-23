@@ -127,3 +127,39 @@ test("a merge joins the existing first-parent line before its lane converges", (
   assert.match(merge.data, /L 42 /);
   assert.ok(merge.data.endsWith(master.data.slice(master.data.indexOf(" Q "))));
 });
+
+for (const mirrored of [false, true]) {
+  test(`a merge preserves the trunk's bend into an adjacent parent (${mirrored ? "right" : "left"})`, () => {
+    // WIP reserves lane 0 for base; the active spans occupy lanes 1 through 4.
+    const commits = [
+      commit("filler", ["root"], 1),
+      commit("master", ["base"], 2),
+      commit("spacer", ["root"], 3),
+      commit("merge", ["feature", "base"], 4),
+      commit("base", ["root"], 0),
+      commit("feature", ["root"], 4),
+      commit("root", [], 0),
+    ];
+    const lanes = new Map(commits.map((item) => [item.oid, mirrored ? 4 - item.graph.lane : item.graph.lane]));
+    for (const item of commits) {
+      item.graph.lane = lanes.get(item.oid)!;
+      item.graph.edges = item.parent_oids.map((parent, index) => ({
+        parent_oid: parent,
+        from_lane: item.graph.lane,
+        to_lane: lanes.get(parent)!,
+        merge: index > 0,
+      }));
+    }
+
+    // Include fractional clamps, coincident source/trunk lanes, and full collapse.
+    for (const maxX of [Infinity, 87, 78, 60, 51, 48.5, 42, 25.5, 24.5, 24]) {
+      const geometry = buildGraphGeometry(commits, true, { maxX });
+      const master = geometry.paths.find((route) => route.key === "master:base:0")!;
+      const merge = geometry.paths.find((route) => route.key === "merge:base:1")!;
+      const tail = master.data.slice(master.data.indexOf(" L "));
+
+      assert.equal(merge.color, master.color, `shared branch color at maxX=${maxX}`);
+      assert.ok(merge.data.endsWith(tail), `shared bend at maxX=${maxX}: ${merge.data} must end with ${tail}`);
+    }
+  });
+}
