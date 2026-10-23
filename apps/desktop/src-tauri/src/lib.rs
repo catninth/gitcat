@@ -170,7 +170,7 @@ fn repository_unwatch(watchers: State<'_, RepositoryWatchState>) {
 
 fn resolve_inside_root(root: &std::path::Path, relative: &str) -> ApiResult<std::path::PathBuf> {
     let normalized = relative.replace('\\', "/");
-    let invalid = || ApiError::new(ErrorCode::InvalidPath, "invalid folder path");
+    let invalid = || ApiError::new(ErrorCode::InvalidPath, "invalid path");
     if normalized.trim().is_empty() {
         return Err(invalid());
     }
@@ -186,11 +186,8 @@ fn resolve_inside_root(root: &std::path::Path, relative: &str) -> ApiResult<std:
         .map_err(|_| ApiError::new(ErrorCode::Internal, "could not resolve repository root"))?;
     let canonical_target = target
         .canonicalize()
-        .map_err(|_| ApiError::new(ErrorCode::InvalidPath, "folder does not exist"))?;
+        .map_err(|_| ApiError::new(ErrorCode::InvalidPath, "path does not exist"))?;
     if !canonical_target.starts_with(&canonical_root) {
-        return Err(invalid());
-    }
-    if !canonical_target.is_dir() {
         return Err(invalid());
     }
     Ok(canonical_target)
@@ -207,6 +204,16 @@ async fn repository_reveal(
         Some(relative) => resolve_inside_root(std::path::Path::new(&worktree), relative)?,
         None => std::path::PathBuf::from(&worktree),
     };
+    // A file is shown selected in its folder; the platform call needs the
+    // plain form of the path, not the verbatim one `canonicalize` returns.
+    if root.is_file() {
+        return tauri_plugin_opener::reveal_item_in_dir(dunce::simplified(&root)).map_err(
+            |error| {
+                ApiError::new(ErrorCode::Internal, "could not show file in folder")
+                    .with_details(error.to_string())
+            },
+        );
+    }
     // Single-purpose file-manager launch for a known, open repository root.
     // No shell and no caller-supplied arguments: only the resolved worktree path.
     #[cfg(target_os = "windows")]

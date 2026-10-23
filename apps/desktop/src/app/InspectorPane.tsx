@@ -122,6 +122,12 @@ export function InspectorPane({
                     void gitcatApi.openRepositoryFolder(activeRepository.repository_id, path)
                         .catch((error) => showError("Could not open folder", error));
                 }}
+                onRevealFile={(path) => {
+                    if (!activeRepository) return;
+                    void gitcatApi.openRepositoryFolder(activeRepository.repository_id, path)
+                        .catch((error) => showError("Could not show file", error));
+                }}
+                repositoryRoot={activeRepository?.info.root ?? ""}
                 operation={snapshot.operation_state}
                 selectedFile={selectedWorktreeFile}
                 status={snapshot.status}

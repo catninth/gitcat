@@ -43,6 +43,7 @@ interface WorktreePanelProps {
   onIgnore: (patterns: string[]) => void;
   onCreatePatch: (paths: string[], staged: boolean) => void;
   onOpenFolder: (path: string) => void;
+  onRevealFile: (path: string) => void;
   onOpenDiff: (entry: StatusEntry, staged: boolean) => void;
   onCommit: (message: string, amend: boolean, signoff: boolean) => Promise<boolean>;
   onResolveConflict: (entry: StatusEntry, resolution: ConflictResolution) => void;
@@ -53,6 +54,7 @@ interface WorktreePanelProps {
   onSkipOperation: () => void;
   onAbortOperation: () => void;
   commitKeybind?: string;
+  repositoryRoot: string;
   selectedFile?: { path: string; staged: boolean } | null;
   operation: RepositoryOperationState;
   operationProgress: OperationProgress | null;
@@ -60,6 +62,20 @@ interface WorktreePanelProps {
   branchName: string;
   draft: CommitDraft;
   onDraftChange: (draft: CommitDraft) => void;
+}
+
+const REVEAL_LABEL = typeof navigator === "undefined"
+  ? "Show in file manager"
+  : /Windows/i.test(navigator.userAgent)
+    ? "Show in Explorer"
+    : /Mac/i.test(navigator.userAgent) ? "Reveal in Finder" : "Show in file manager";
+
+// Joins a repository-relative path onto the root with the root's own separator,
+// so the copied path pastes straight into the platform's file manager or shell.
+export function absoluteFilePath(root: string, path: string): string {
+  const separator = root.includes("\\") ? "\\" : "/";
+  const trimmed = root.replace(/[\\/]+$/, "");
+  return `${trimmed}${separator}${path.replace(/[\\/]/g, separator)}`;
 }
 
 export function buildCommitMessage(draft: CommitDraft): string {
@@ -97,6 +113,7 @@ export function WorktreePanel({
   onIgnore,
   onCreatePatch,
   onOpenFolder,
+  onRevealFile,
   onOpenDiff,
   onCommit,
   onResolveConflict,
@@ -107,6 +124,7 @@ export function WorktreePanel({
   onSkipOperation,
   onAbortOperation,
   commitKeybind = "Ctrl+Enter",
+  repositoryRoot,
   selectedFile,
   operation,
   operationProgress,
@@ -163,12 +181,14 @@ export function WorktreePanel({
     const ignore: ContextAction[] = [{ id: "ignore-file", label: "Ignore this file" }];
     if (ext) ignore.push({ id: "ignore-ext", label: `Ignore all *.${ext} files` });
     if (folder) ignore.push({ id: "ignore-folder", label: `Ignore ${folder}/ folder` });
+    const removed = (fileMenu.staged ? fileMenu.entry.index : fileMenu.entry.worktree) === "deleted";
     return [
       fileMenu.staged ? { id: "unstage", label: "Unstage" } : { id: "stage", label: "Stage" },
       { id: "discard", label: "Discard changes", danger: true },
       { id: "ignore", label: "Ignore", submenu: ignore },
       { id: "stash", label: "Stash file" },
       { id: "copy", label: "Copy file path", separatorBefore: true },
+      { id: "reveal", label: REVEAL_LABEL, disabled: removed },
       { id: "patch", label: "Create patch from file changes" },
     ];
   }, [fileMenu]);
@@ -189,7 +209,8 @@ export function WorktreePanel({
       case "ignore-file": onIgnore([base]); break;
       case "ignore-ext": if (ext) onIgnore([`*.${ext}`]); break;
       case "ignore-folder": if (folder) onIgnore([`${folder}/`]); break;
-      case "copy": void navigator.clipboard?.writeText(entry.path); break;
+      case "copy": void navigator.clipboard?.writeText(absoluteFilePath(repositoryRoot, entry.path)); break;
+      case "reveal": onRevealFile(entry.path); break;
       case "patch": onCreatePatch([entry.path], staged); break;
     }
     setFileMenu(null);
