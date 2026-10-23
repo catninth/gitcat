@@ -103,3 +103,27 @@ test("a route to an unloaded parent runs to the end of the list", () => {
     [1, commits.length],
   );
 });
+
+test("a merge joins the existing first-parent line before its lane converges", () => {
+  const commits = [
+    commit("master", ["base"], 1),
+    commit("merge", ["feature", "base"], 2),
+    commit("unrelated", ["base"], 0),
+    commit("feature", [], 2),
+    commit("base", [], 0),
+  ];
+  commits[0].graph.edges[0].to_lane = 0;
+  commits[1].graph.edges[1] = {
+    parent_oid: "base", from_lane: 2, to_lane: 0, merge: true,
+  };
+  const geometry = buildGraphGeometry(commits, false, {
+    colors: new Map([["master", 1], ["merge", 2], ["base", 0]]),
+  });
+  const master = geometry.paths.find((route) => route.key === "master:base:0")!;
+  const merge = geometry.paths.find((route) => route.key === "merge:base:1")!;
+
+  assert.equal(merge.color, master.color, "the junction belongs to the master span");
+  // Lane 1 is x=42; the unrelated row at lane 0 must not be on this route.
+  assert.match(merge.data, /L 42 /);
+  assert.ok(merge.data.endsWith(master.data.slice(master.data.indexOf(" Q "))));
+});

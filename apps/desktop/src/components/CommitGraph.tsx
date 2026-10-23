@@ -387,7 +387,15 @@ function buildEdgePath(
   endY: number,
   parentVisible: boolean,
   mergeEdge: boolean,
+  mergeLaneX = endX,
 ): string {
+  if (mergeEdge && parentVisible && mergeLaneX !== endX) {
+    const corner = edgeCorner(startX, startY, mergeLaneX, endY);
+    const approachX = mergeLaneX < startX ? mergeLaneX + corner : mergeLaneX - corner;
+    return `M ${startX} ${startY} L ${approachX} ${startY}`
+      + ` Q ${mergeLaneX} ${startY}, ${mergeLaneX} ${startY + corner}`
+      + ` ${buildEdgePath(mergeLaneX, startY + corner, endX, endY, true, false)}`;
+  }
   if (startX === endX) return `M ${startX} ${startY} L ${endX} ${endY}`;
 
   if (!parentVisible) {
@@ -437,6 +445,7 @@ export function buildGraphGeometry(
   }
 
   const paths: GraphPath[] = [];
+  const firstParentRoutes = new Map<string, { lane: number; color: number }>();
   for (let index = 0; index < commits.length; index += 1) {
     const commit = commits[index];
     const commitPaths: GraphPath[] = [];
@@ -451,20 +460,29 @@ export function buildGraphGeometry(
       const startY = rowY(index);
       const endX = laneX(endLane, maxX);
       const endY = Math.min(rowY(targetIndex), commits.length * ROW_STRIDE - ROW_GAP);
-      const data = buildEdgePath(startX, startY, endX, endY, parentVisible, edge.merge);
-      const color = getGraphEdgeColor(commit, edgeIndex, colors);
+      // Join the existing branch span, which may bend into the parent's lane
+      // only at its endpoint; turning early can run through unrelated nodes.
+      const trunk = edge.merge && parentVisible ? firstParentRoutes.get(edge.parent_oid) : undefined;
+      const mergeLane = trunk?.lane ?? endLane;
+      const data = buildEdgePath(startX, startY, endX, endY, parentVisible, edge.merge, laneX(mergeLane, maxX));
+      const color = trunk?.color ?? getGraphEdgeColor(commit, edgeIndex, colors);
 
       const path = {
         key: `${commit.oid}:${edge.parent_oid}:${edgeIndex}`,
         data,
         color,
-        paintLane: Math.max(edge.from_lane, endLane),
+        paintLane: Math.max(edge.from_lane, endLane, mergeLane),
         merge: edge.merge,
         stash: Boolean(commit.stash),
         fromRow: index,
         toRow: targetIndex,
       };
       commitPaths.push(path);
+    }
+
+    const firstParent = commit.graph.edges[0];
+    if (firstParent && !commit.stash) {
+      firstParentRoutes.set(firstParent.parent_oid, { lane: firstParent.from_lane, color: commitPaths[0].color });
     }
 
     // SVG paints later paths on top. Prepending each older row keeps the
