@@ -11,9 +11,9 @@ on:
         description: Release notes shown in the update prompt
         type: string
         default: ""
-  schedule:
-    # Nightly pre-release from the default branch, 03:00 UTC every day.
-    - cron: "0 3 * * *"
+  # schedule:
+  #   # Nightly pre-release from the default branch, 03:00 UTC every day.
+  #   - cron: "0 3 * * *"
 
 permissions:
   contents: write
