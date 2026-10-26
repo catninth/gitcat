@@ -1,6 +1,6 @@
 # GitCat code signing policy
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-26.
 
 This policy covers the build and signing process in the [official GitCat repository](https://github.com/catninth/gitcat) and its [GitHub releases](https://github.com/catninth/gitcat/releases). GitCat uses Tauri updater signatures. The current release workflow does not apply Windows Authenticode signatures.
 
@@ -22,7 +22,7 @@ These signatures protect the updater's package-authenticity check. The manifest 
 
 The workflow builds from the GitHub Actions run's checked-out source revision on GitHub-hosted Windows and Linux runners. It runs Rust formatting, Clippy, workspace tests, TypeScript checks, and platform packaging checks before publication. It prints package SHA-256 hashes in the build logs and publishes packages, updater signatures, and `latest.json` together after both platform jobs succeed. A checksum can detect a mismatch; it is not a substitute for a trusted signature.
 
-Stable releases are started manually and publish only when the workflow's `publish` input is enabled. Scheduled runs can publish a rolling `nightly` pre-release from the default branch without a separate per-release approval. The stable in-app updater excludes pre-releases.
+Stable releases are started manually and publish only when the workflow's `publish` input is enabled. The nightly schedule is currently disabled. The retained scheduled-run logic would publish a rolling `nightly` pre-release from the default branch if the schedule were re-enabled. The stable in-app updater excludes pre-releases.
 
 Repository maintainers with the necessary GitHub permissions control workflow execution, source changes, release publication, and signing-secret configuration. The checked-in workflow does not define a separate signing approver, protected-environment approval, or two-person release gate. External branch-protection and account settings are managed on GitHub and are not asserted by this policy.
 

@@ -1,10 +1,49 @@
-# GitCat
+# GitCat — an open-source Git GUI for Windows and Linux
 
-Lightweight, Windows-first desktop Git client with Linux builds. Tauri v2 + React UI, Rust core, and system-installed Git. No AI, cloud patches, PR/issue panel, or arbitrary shell/Git commands.
+**GitCat by Cat Ninth** is a desktop Git client for reviewing changes, navigating commit history, managing branches, and resolving conflicts.
 
-> **Status:** functional MVP. `tauri dev` works with real repositories; the standalone Vite development page uses a built-in demo data source.
+A focused GitKraken alternative, GitCat brings repository tabs, a visual commit graph, and syntax-highlighted diffs to your existing Git workflow. It uses your system Git, including your configuration, credential helpers, SSH agent, hooks, filters, and commit signing. Built with Tauri, Rust, and React. Licensed under MPL-2.0. No built-in AI features.
 
-[Privacy notice](PRIVACY.md) · [Code signing policy](CODE_SIGNING.md) · [License](LICENSE)
+[Download the latest release](https://github.com/catninth/gitcat/releases/latest) · [Product overview](https://catninth.com/guides/gitcat/) · [User guide](https://catninth.com/guides/gitcat/first-repository/) · [Feature gallery](docs/gallery/README.md) · [FAQ](docs/FAQ.md)
+
+Official project: [catninth/gitcat](https://github.com/catninth/gitcat). [Privacy notice](PRIVACY.md) · [Code signing policy](CODE_SIGNING.md) · [License](LICENSE)
+
+## Download and platform support
+
+Get the installer or package from [GitCat Releases](https://github.com/catninth/gitcat/releases/latest). As of October 26, 2026, the latest stable release is [v1.13.0](https://github.com/catninth/gitcat/releases/tag/v1.13.0), published October 23, 2026.
+
+| Platform | Release package | Support and requirements |
+| --- | --- | --- |
+| Windows 10/11 x64 | `_x64-setup.exe` installer | Primary target. Install Git 2.31+; the installer can install WebView2 if needed. |
+| Linux x86_64 | `.AppImage`, `.deb`, `.rpm` | Built, tested, and packaged; receives less manual UX testing than Windows. Requires Git and a compatible WebKitGTK 4.1 environment. |
+| macOS | None | Not currently packaged or verified. |
+
+Use your distribution's package installer for `.deb` or `.rpm` to resolve dependencies. Linux release builds use Ubuntu 24.04 as their build baseline; packages are not a promise of compatibility with every distribution. See the [installation guide](https://catninth.com/guides/gitcat/install/) for setup details. Rust and Node.js are needed only to [build from source](#development).
+
+Windows packages are not Authenticode-signed; Windows may display an unknown-publisher or SmartScreen warning. Updater signatures are separate from Windows publisher verification. See the [code signing policy](CODE_SIGNING.md) before installing.
+
+## Quick start
+
+1. Install Git 2.31+ and the GitCat package for your platform. Keep your usual Git author identity and authentication configured.
+2. Launch GitCat and choose **Open** to select an existing repository folder. Choose **Clone** for a remote URL or **Create** for a new repository.
+3. Select **WIP** to review uncommitted changes. Open a file to inspect its diff, stage the files you want, enter a commit summary, and commit.
+4. Use **Pull** and **Push** to sync with a configured remote. For private repositories, use your system Git credentials or connect a supported GitHub account under **Preferences → Integrations**.
+
+Start with [your first repository](https://catninth.com/guides/gitcat/first-repository/), then follow the [changes and commits guide](https://catninth.com/guides/gitcat/changes-and-commits/). A GitCat account is not required for local repository work.
+
+## Why GitCat?
+
+- **Move between repositories without losing your place.** Open repositories in tabs, switch with `Ctrl+Tab`, and return to each repository's commit draft. [See the workspace screenshot](docs/gallery/workspace/repository-overview.png).
+- **Review before you commit.** Inspect syntax-highlighted hunk, inline, or split diffs, then stage files in the working-tree panel. [See the split diff screenshot](docs/gallery/diffs/split-diff.png) and [staging screenshot](docs/gallery/working-tree/tree-layout.png).
+- **Work through conflicts with context.** Check a prospective merge with read-only conflict preflight, then use the Base/Ours/Theirs/result editor when an operation stops on conflicts. Preflight requires Git 2.38+ with the needed `merge-tree` capability. [See the conflict preflight screenshot](docs/gallery/git-actions/conflict-preflight.png) and [conflict guide](https://catninth.com/guides/gitcat/conflicts/).
+
+Considering a switch? Read [GitCat as a GitKraken alternative](docs/GITKRAKEN_ALTERNATIVE.md) for supported workflows, setup, and gaps to check before adopting it.
+
+## Project status
+
+GitCat has installable Windows and Linux releases for real repositories. Commit review, staging, branching, remote synchronization, and conflict resolution are implemented; platform coverage and feature gaps remain explicit. Windows is the primary target, and Linux receives less manual UX verification. See [known limitations](#known-limitations) before relying on a particular integration or workflow.
+
+For development, `tauri dev` works with real repositories. The standalone Vite page uses a built-in demo data source and cannot access your repositories.
 
 ## Screenshots
 
@@ -56,6 +95,8 @@ Lightweight, Windows-first desktop Git client with Linux builds. Tauri v2 + Reac
 - WIP/working tree: separate collapsible staged/unstaged trees, optimistic staging with rollback on failure, per-file or bulk actions, separate summary and description fields with a 72-character counter on the summary, amend, sign-off, and discard-all.
 - Changed-file context menu: stage/unstage, discard, ignore the file, extension, or folder, stash a single file, copy the path, and save a patch.
 - Push and pull quick actions carrying ahead/behind counts, autostash-backed pull for dirty worktrees, stash push and pop, and explicit pull modes: merge, fast-forward only, or rebase. Fetch and refresh are keybind-driven (`Ctrl+L`, `F5`).
+- Repositories without a remote can add one by URL or create one on a connected GitHub service. The checked-out branch's graph menu includes **Set upstream**.
+- Right-click a stash in the graph to apply, pop, or delete that entry. The commit graph menu also supports annotated tags with a tag message.
 - Commit context menu: detached checkout, branch/tag creation, cherry-pick, revert, a reset submenu (soft, mixed, hard), and full SHA copy.
 - Continue, skip, or abort an in-progress merge/rebase/cherry-pick/revert from an operation banner that names the commit the operation stopped on and shows the rebase position.
 - Read-only merge-conflict preflight plus an operation-aware Base/Ours/Theirs/result editor, guarded side selection, delete/stage actions, and conservative Git `rerere` reuse.
@@ -225,7 +266,7 @@ verification, and restart; see [the integration guide](docs/TAURI_INTEGRATION.md
 Triggers:
 
 - `workflow_dispatch`: a stable `v<version>` release. Artifacts are always uploaded; the release is created only with `publish: true`.
-- `schedule` (daily at 03:00 UTC): a rolling `nightly` pre-release built from the default branch. Each run deletes the previous `nightly` release and tag and recreates them at the current commit; the run is skipped when the last nightly already covers that commit. Because it is a pre-release, it never becomes `releases/latest`, so the in-app updater keeps following the stable channel. GitHub pauses scheduled workflows after 60 days without repository activity.
+- Scheduled nightly publication is currently disabled in the workflow. The retained scheduled-run logic would publish a rolling `nightly` pre-release if the schedule were re-enabled; existing nightly pre-releases are excluded from the stable in-app update channel.
 
 `apps/desktop/src-tauri/nsis/installer.nsi` is a vendored copy of the Tauri bundler's NSIS template for the pinned `@tauri-apps/cli` version, carrying one addition: the "Additional tasks" page that offers the Explorer context menu. Tauri's four `NSIS_HOOK_*` macros all run inside a section, which is too late to declare an installer page, so the page itself cannot live in `nsis/hooks.nsh` with the rest of the logic. Upgrading the CLI means re-fetching the template for the new version and reapplying that one insertion; see `AGENTS.md`.
 
@@ -247,17 +288,29 @@ Triggers:
 - GitCat does not modify the global `safe.directory` value or delete `.git/index.lock`.
 - The Tauri main window receives only core and directory-open permissions; CSP blocks external object/frame/form content.
 
-## MVP limitations
+<a id="mvp-limitations"></a>
+
+## Known limitations
 
 - Hosted repository browsing and creation support GitHub.com and GitHub Enterprise. Other listed providers currently offer links only; their hosted clone/create integration is disabled. Cloning a remote URL through system Git remains available.
-- A remote/upstream editor and annotated-tag message UI are not yet available; the core/IPC already partially supports them.
-- Stashing is limited to push and popping the latest entry from the toolbar. Applying or dropping an arbitrary stash has core/IPC support but no panel.
-- Network operations have no progress or cancel UI; the Tauri adapter currently creates its own cancellation token for each call.
+- There is no general editor for existing remote URLs. Adding a remote when none exists and setting the checked-out branch's upstream are available.
+- There is no standalone stash panel. Use the toolbar to push a stash or pop the latest entry, or a stash's graph context menu to apply, pop, or delete that entry.
+- Clone, fetch, pull, and push do not expose transfer progress or cancellation in the UI; the Tauri adapter currently creates its own cancellation token for each call.
 - Diffs are line-level: syntax highlighting is available, word-level diffs are not.
-- There is no built-in credential dialog or terminal.
+- There is no built-in terminal or interactive prompt for arbitrary Git credentials. Use supported hosting connections, system Git credential helpers, or your SSH agent.
 - Author pictures can be fetched from GitHub without signing in for public repositories and GitHub alias addresses. Gravatar fallback is opt-in; unresolved authors use initials. See the [privacy notice](PRIVACY.md).
 
 Detailed contracts: [Core API](docs/CORE_API.md), [Tauri integration](docs/TAURI_INTEGRATION.md), [GitKraken UX research](docs/GITKRAKEN_UX_RESEARCH.md), and [UX implementation notes](docs/UX_IMPLEMENTATION.md).
+
+For maintainers: [project discoverability and measurement](docs/DISCOVERABILITY.md).
+
+## Common questions
+
+The [FAQ](docs/FAQ.md) covers the license, supported platforms, hosting accounts, AI features, and network activity. GitCat has no built-in usage analytics, but update checks, Git operations, hosting lookups, and pictures can make network requests; see the [privacy notice](PRIVACY.md) for the controls and remaining activity.
+
+## Project background
+
+GitCat by Cat Ninth was introduced as a "vibe-coded GitKraken alternative." That describes the project's development background. The feature list, source, verification commands, and known limitations above describe the application you can evaluate today.
 
 ## License
 
