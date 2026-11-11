@@ -9,7 +9,7 @@ import {
 } from "../components/CommitGraph";
 import { GraphColumnResizer } from "../components/GraphColumnResizer";
 import { GraphConflictNotice } from "../components/GraphConflictNotice";
-import { MergeEditor } from "../components/conflict";
+import { ConflictDecisionBar, MergeEditor, SubmoduleConflictView } from "../components/conflict";
 import { DiffViewer, type DiffLineActions, type DiffViewMode } from "../components/diff";
 import { ChangeCountSummary, type FileChangeCounts } from "../components/file-tree";
 import { GraphColumnMenu } from "../components/GraphColumnMenu";
@@ -37,6 +37,7 @@ import type {
     CommitSummary,
     ConflictFileDetails,
     ConflictLineEndingPolicy,
+    ConflictResolution,
     FileDiff,
     GraphColumnSettings,
     GraphColumnWidths,
@@ -45,6 +46,7 @@ import type {
     RepositorySnapshot,
 } from "../lib/types";
 import { currentBranch } from "./branches";
+import { conflictContextOf, type ConflictPrompt } from "./useConflictActions";
 import type { CenterView, CommitMenuState, RunMutation } from "./state";
 
 export interface HistoryPaneProps {
@@ -53,6 +55,9 @@ export interface HistoryPaneProps {
     centerView: CenterView;
     checkoutRemoteBranch: (branch: BranchInfo) => void;
     closeConflictEditor: () => void;
+    chooseConflictPrompt: (resolution: ConflictResolution) => void;
+    conflictPrompt: ConflictPrompt | null;
+    openConflictSubmodule: () => void;
     closeDiff: () => void;
     conflictEditor: ConflictFileDetails | null;
     columns: GraphColumnSettings;
@@ -114,6 +119,9 @@ export function HistoryPane({
     centerView,
     checkoutRemoteBranch,
     closeConflictEditor,
+    chooseConflictPrompt,
+    conflictPrompt,
+    openConflictSubmodule,
     closeDiff,
     conflictEditor,
     columns,
@@ -249,16 +257,29 @@ export function HistoryPane({
                     value={searchQuery}
                 />
             ) : null}
-            {centerView === "merge" && conflictEditor ? (
+            {conflictPrompt?.kind === "decision" && centerView === "graph" ? (
+                <ConflictDecisionBar
+                    busy={busy}
+                    decision={conflictPrompt.decision}
+                    onCancel={closeConflictEditor}
+                    onChoose={chooseConflictPrompt}
+                />
+            ) : null}
+            {centerView === "merge" && conflictPrompt?.kind === "submodule" ? (
+                <SubmoduleConflictView
+                    busy={busy}
+                    closeKeybind={settings.keybinds.show_graph}
+                    details={conflictPrompt.details}
+                    onClose={closeConflictEditor}
+                    onOpenSubmodule={openConflictSubmodule}
+                    onUseCurrent={() => chooseConflictPrompt("mark_resolved")}
+                    onUseIncoming={() => chooseConflictPrompt("theirs")}
+                />
+            ) : centerView === "merge" && conflictEditor ? (
                 <MergeEditor
                     busy={busy}
                     closeKeybind={settings.keybinds.show_graph}
-                    context={{
-                        operation: snapshot?.operation_state ?? "normal",
-                        branchName: currentBranch(snapshot),
-                        source: snapshot?.operation_source ?? null,
-                        headShort: snapshot && snapshot.head.kind !== "unborn" ? snapshot.head.oid.slice(0, 7) : null,
-                    }}
+                    context={conflictContextOf(snapshot)}
                     details={conflictEditor}
                     onClose={closeConflictEditor}
                     onSave={saveConflictResult}

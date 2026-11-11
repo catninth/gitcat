@@ -121,6 +121,16 @@ impl GitCliBackend {
                 "Conflict index contains an invalid object ID",
             ));
         }
+        // A submodule pointer names a commit in the submodule's own object
+        // store; the parent has no blob to read.
+        if mode == GITLINK_MODE {
+            return Ok(ConflictFileContent {
+                kind: ConflictContentKind::Binary,
+                size: None,
+                text: None,
+                line_ending: None,
+            });
+        }
         let size_output = self
             .read(Some(path), vec!["cat-file".into(), "-s".into(), oid.into()])
             .await?;
@@ -181,6 +191,20 @@ impl GitCliBackend {
         path: &Path,
         conflict_path: &str,
     ) -> ApiResult<InspectedConflictResult> {
+        validate_relative_path(conflict_path)?;
+        // A submodule's working copy is a directory. It has no content to
+        // compare, so it is described the way a missing file is.
+        if fs::symlink_metadata(path.join(conflict_path)).is_ok_and(|metadata| metadata.is_dir()) {
+            return Ok(InspectedConflictResult {
+                content: ConflictFileContent {
+                    kind: ConflictContentKind::Missing,
+                    size: None,
+                    text: None,
+                    line_ending: None,
+                },
+                identity: missing_worktree_identity(),
+            });
+        }
         let target = checked_worktree_target(path, conflict_path, false)?;
         let metadata = match fs::symlink_metadata(&target) {
             Ok(metadata) => metadata,

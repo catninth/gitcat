@@ -441,8 +441,11 @@ function App() {
     }, [jumpToCommit]);
 
     const {
+        chooseConflictPrompt,
         closeConflictEditor,
+        conflictPrompt,
         openConflictEditor,
+        openConflictSubmodule,
         resolveConflictEntry,
         resolveConflictPaths,
         saveConflictResult,
@@ -451,6 +454,7 @@ function App() {
         activeRepositoryIdRef,
         busy,
         conflictEditor,
+        openRepositoryPath,
         runMutation,
         setBusy,
         setCenterView,
@@ -984,6 +988,9 @@ function App() {
                             centerView={centerView}
                             checkoutRemoteBranch={checkoutRemoteBranch}
                             closeConflictEditor={closeConflictEditor}
+                            chooseConflictPrompt={chooseConflictPrompt}
+                            conflictPrompt={conflictPrompt}
+                            openConflictSubmodule={openConflictSubmodule}
                             closeDiff={closeDiff}
                             conflictEditor={conflictEditor}
                             columnWidths={graphColumnWidths}

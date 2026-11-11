@@ -660,3 +660,71 @@ async fn removal_preserves_files_inside_a_deinitialized_nested_submodule() {
     );
     assert_eq!(fs::read_to_string(precious).unwrap(), "nested local work");
 }
+
+/// A pointer conflict has no file to merge: the view describes the three
+/// commits from the submodule itself, and taking a side stages that commit.
+#[tokio::test]
+async fn submodule_pointer_conflict_is_described_and_resolved_by_side() {
+    let fixture = Fixture::new().await;
+    let child = fixture.add().await;
+    let base = git(&fixture.root, &["rev-parse", "HEAD"]);
+
+    let ours = commit(&child, "ours child commit");
+    git(&fixture.root, &["add", "--", CHILD]);
+    git(&fixture.root, &["commit", "-m", "point at ours"]);
+    git(&fixture.root, &["checkout", "-b", "theirs", &base]);
+    git(&child, &["checkout", "--detach", "HEAD~1"]);
+    let theirs = commit(&child, "theirs child commit");
+    git(&fixture.root, &["add", "--", CHILD]);
+    git(&fixture.root, &["commit", "-m", "point at theirs"]);
+    git(&fixture.root, &["checkout", "main"]);
+    git(&child, &["checkout", "--detach", &ours]);
+    let merge = Command::new("git")
+        .arg("-C")
+        .arg(&fixture.root)
+        .args(["merge", "theirs"])
+        .output()
+        .expect("run merge");
+    assert!(!merge.status.success(), "the pointers conflict");
+
+    let snapshot = fixture.api.snapshot(&fixture.id).await.unwrap();
+    let entry = snapshot
+        .status
+        .entries
+        .iter()
+        .find(|entry| entry.path == CHILD)
+        .expect("conflicted submodule");
+    assert!(entry.conflicted && entry.submodule);
+
+    let details = fixture
+        .api
+        .submodule_conflict_details(&fixture.id, CHILD)
+        .await
+        .unwrap();
+    assert_eq!(details.current.as_ref().unwrap().oid, ours);
+    assert_eq!(details.ours.as_ref().unwrap().oid, ours);
+    let incoming = details.theirs.as_ref().unwrap();
+    assert_eq!(incoming.oid, theirs);
+    assert_eq!(incoming.summary.as_deref(), Some("theirs child commit"));
+
+    let expected = fixture
+        .api
+        .conflict_details(&fixture.id, CHILD)
+        .await
+        .unwrap()
+        .expected_state;
+    let result = fixture
+        .api
+        .resolve_conflict(
+            &fixture.id,
+            CHILD,
+            gitcat_contracts::ConflictResolution::Theirs,
+            &expected,
+        )
+        .await
+        .unwrap();
+    assert!(result.conflicts.is_empty());
+    let staged = git(&fixture.root, &["ls-files", "--stage", "--", CHILD]);
+    assert!(staged.contains(&theirs), "{staged}");
+    assert!(staged.contains(" 0\t"), "{staged}");
+}

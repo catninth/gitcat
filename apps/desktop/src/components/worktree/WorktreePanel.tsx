@@ -197,7 +197,6 @@ export function WorktreePanel({
   const [folderMenu, setFolderMenu] = useState<{ path: string; entries: StatusEntry[]; conflicts: StatusEntry[]; staged: boolean; x: number; y: number } | null>(null);
 
   const openFileMenu = (entry: StatusEntry, staged: boolean, event: ReactMouseEvent) => {
-    if (entry.conflicted) return;
     setFolderMenu(null);
     setFileMenu({ entry, staged, x: event.clientX, y: event.clientY });
   };
@@ -216,6 +215,22 @@ export function WorktreePanel({
 
   const fileMenuActions = useMemo<ContextAction[]>(() => {
     if (!fileMenu) return [];
+    if (fileMenu.entry.conflicted) {
+      // A side Git recorded nothing for cannot be taken; offering it would
+      // only produce an error.
+      const kind = fileMenu.entry.conflict_kind;
+      const noOurs = kind === "deleted_by_us" || kind === "added_by_them" || kind === "both_deleted";
+      const noTheirs = kind === "deleted_by_them" || kind === "added_by_us" || kind === "both_deleted";
+      return [
+        { id: "conflict_ours", label: `Take current (${labels.ours})`, disabled: busy || noOurs },
+        { id: "conflict_theirs", label: `Take incoming (${labels.theirs})`, disabled: busy || noTheirs },
+        { id: "conflict_mark", label: "Mark resolved", disabled: busy },
+        { id: "conflict_open", label: "Open conflict…", separatorBefore: true, disabled: busy },
+        { id: "reveal", label: REVEAL_LABEL, separatorBefore: true, disabled: kind === "both_deleted" || kind === "deleted_by_us" },
+        { id: "copy", label: "Copy file path", separatorBefore: true },
+        { id: "conflict_delete", label: "Delete file", danger: true, separatorBefore: true, disabled: busy },
+      ];
+    }
     const base = fileMenu.entry.path.replaceAll("\\", "/");
     const name = base.split("/").at(-1) ?? base;
     const dot = name.lastIndexOf(".");
@@ -234,7 +249,7 @@ export function WorktreePanel({
       { id: "reveal", label: REVEAL_LABEL, disabled: removed },
       { id: "patch", label: "Create patch from file changes" },
     ];
-  }, [fileMenu]);
+  }, [busy, fileMenu, labels]);
 
   const executeFileAction = (id: string) => {
     if (!fileMenu) return;
@@ -245,6 +260,11 @@ export function WorktreePanel({
     const ext = dot > 0 ? name.slice(dot + 1) : "";
     const folder = base.includes("/") ? base.slice(0, base.lastIndexOf("/")) : "";
     switch (id) {
+      case "conflict_ours": onResolveConflict(entry, "ours"); break;
+      case "conflict_theirs": onResolveConflict(entry, "theirs"); break;
+      case "conflict_mark": onResolveConflict(entry, "mark_resolved"); break;
+      case "conflict_delete": onResolveConflict(entry, "delete"); break;
+      case "conflict_open": onOpenConflict(entry); break;
       case "stage": onStage([entry.path]); break;
       case "unstage": onUnstage([entry.path]); break;
       case "discard": onDiscard([entry.path]); break;
@@ -365,6 +385,7 @@ export function WorktreePanel({
           label="Conflicted Files"
           onAction={() => onResolveConflicts(conflicts.map((entry) => entry.path), "mark_resolved")}
           onEntryAction={(entry) => onResolveConflicts([entry.path], "mark_resolved")}
+          onItemContextMenu={(entry, event) => openFileMenu(entry, false, event)}
           onFolderContextMenu={(folder, event) => openFolderMenu(folder, false, event)}
           onOpenConflict={onOpenConflict}
           onOpenDiff={(entry) => onOpenDiff(entry, false)}
