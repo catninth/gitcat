@@ -3,6 +3,8 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { ToastMessage } from "../components/ToastRegion";
 import { gitcatApi } from "../lib/api";
 import type { PullMode, PullPhase, RepositorySnapshot, StashEntry } from "../lib/types";
+import { conflictToasts, continueConflictMutation, operationTitle } from "../lib/conflicts";
+import { currentBranch } from "./branches";
 import { continuableOperation } from "./snapshot";
 import type { PromptState, RunMutation } from "./state";
 
@@ -44,13 +46,23 @@ export function useRepositoryCommands({
     }, [autoPrune, runMutation]);
 
     const pullActiveRepository = useCallback((mode: PullMode = defaultPullMode) => {
+        // A pull that stops while putting the local changes back has two
+        // failures to report: the stash that did not apply, and the pull.
+        let restoring = false;
+        const reportPhase = (phase: PullPhase | null) => {
+            if (phase) restoring = phase.phase === "restoring";
+            onPullPhase(phase);
+        };
         void runMutation("Pull complete", (repository) => gitcatApi.pull(repository.repository_id, {
             remote: null,
             branch: null,
             mode,
             prune: autoPrune,
             autostash: true,
-        }, onPullPhase).finally(() => onPullPhase(null)), { queueKey: "pull" });
+        }, reportPhase).finally(() => onPullPhase(null)), {
+            queueKey: "pull",
+            conflictToasts: () => conflictToasts(restoring ? "pull_autostash" : "pull"),
+        });
     }, [autoPrune, defaultPullMode, onPullPhase, runMutation]);
 
     // A branch with no upstream is the one case where the push has to say so,
@@ -87,19 +99,40 @@ export function useRepositoryCommands({
         void runMutation(
             "Stash popped",
             (repository) => gitcatApi.stashApply(repository.repository_id, stashes[0].oid, true),
-            { queueKey: `stash-pop:${stashes[0].oid}`, wipTitleHint: stashes[0].message },
+            {
+                queueKey: `stash-pop:${stashes[0].oid}`,
+                wipTitleHint: stashes[0].message,
+                conflictToasts: conflictToasts("stash_apply"),
+            },
         );
     }, [runMutation, stashes]);
 
-    const continueActiveOperation = useCallback(() => {
+    const continueActiveOperation = useCallback((message: string | null = null): Promise<boolean> => {
         const operation = snapshot ? continuableOperation(snapshot.operation_state) : null;
-        if (operation) void runMutation("Operation continued", (repository) => gitcatApi.continueOperation(repository.repository_id, operation), { queueKey: `continue:${operation}` });
+        if (!operation || !snapshot) return Promise.resolve(false);
+        const source = snapshot.operation_source;
+        const title = operation === "merge" && source
+            ? `Merged – ${source.incoming} into ${currentBranch(snapshot)}`
+            : `${operationTitle(operation)} continued`;
+        return runMutation(
+            title,
+            (repository) => gitcatApi.continueOperation(repository.repository_id, operation, message),
+            { queueKey: `continue:${operation}`, conflictToasts: conflictToasts(continueConflictMutation(operation)) },
+        );
     }, [runMutation, snapshot]);
 
+    // GitKraken aborts without asking. That is right while nothing has been
+    // resolved yet -- the abort loses nothing -- but once files are resolved
+    // the abort throws that work away, so it is confirmed then.
     const abortActiveOperation = useCallback(() => {
         const operation = snapshot ? continuableOperation(snapshot.operation_state) : null;
-        if (!operation || !window.confirm(`Abort the active ${operation.replace("_", "-")} operation and discard its in-progress state?`)) return;
-        void runMutation("Operation aborted", (repository) => gitcatApi.abortOperation(repository.repository_id, operation), { queueKey: `abort:${operation}` });
+        if (!operation || !snapshot) return;
+        const resolved = snapshot.status.entries.filter((entry) => entry.index && !entry.conflicted).length;
+        const label = operationTitle(operation).toLowerCase();
+        if (resolved > 0 && !window.confirm(
+            `Abort the ${label}? ${resolved} resolved file${resolved === 1 ? "" : "s"} will be reset.`,
+        )) return;
+        void runMutation(`${operationTitle(operation)} aborted`, (repository) => gitcatApi.abortOperation(repository.repository_id, operation), { queueKey: `abort:${operation}` });
     }, [runMutation, snapshot]);
 
     const skipActiveOperation = useCallback(() => {
@@ -107,7 +140,10 @@ export function useRepositoryCommands({
         if (!operation || operation === "merge") return;
         const label = operation.replace("_", "-");
         if (!window.confirm(`Skip the commit currently being applied by this ${label} and drop its changes?`)) return;
-        void runMutation("Commit skipped", (repository) => gitcatApi.skipOperation(repository.repository_id, operation), { queueKey: `skip:${operation}` });
+        void runMutation("Commit skipped", (repository) => gitcatApi.skipOperation(repository.repository_id, operation), {
+            queueKey: `skip:${operation}`,
+            conflictToasts: conflictToasts(continueConflictMutation(operation)),
+        });
     }, [runMutation, snapshot]);
 
     const autoResolveActiveConflicts = useCallback(() => {

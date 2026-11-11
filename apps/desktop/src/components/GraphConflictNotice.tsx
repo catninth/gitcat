@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 
 import { visibleGraphColumns } from "../lib/columns";
-import { conflictNoticeMessage } from "../lib/conflicts";
+import { conflictNoticeMessage, conflictSubtitle } from "../lib/conflicts";
 import type { GraphColumnSettings, OperationSource, RepositoryOperationState } from "../lib/types";
 
 // A stopped operation is stated on the working-copy row rather than in a bar of
@@ -26,8 +26,9 @@ export function GraphConflictNotice({
   source: OperationSource | null;
 }) {
   const messageColumn = visibleGraphColumns(columns).indexOf("message");
-  const message = conflictNoticeMessage(operation, source, branchName);
-  const remaining = `${count} file${count === 1 ? "" : "s"} left to resolve`;
+  const message = conflictNoticeMessage(count, operation, branchName);
+  const subtitle = conflictSubtitle({ operation, branchName, source });
+  const detail = subtitle ? ` (${subtitle.verb} ${subtitle.incoming} ${subtitle.preposition} ${subtitle.target})` : "";
 
   return (
     <button
@@ -37,12 +38,11 @@ export function GraphConflictNotice({
         onSelect();
       }}
       style={{ gridColumn: `${messageColumn < 0 ? 1 : messageColumn + 1} / -1` }}
-      title={`${message}. ${remaining}.`}
+      title={`${message}${detail}. Resolve them in the working tree panel.`}
       type="button"
     >
       <TriangleAlert aria-hidden="true" className="shrink-0" size={13} />
       <span className="min-w-0 truncate">{message}</span>
-      <span className="shrink-0 opacity-75">· {remaining}</span>
     </button>
   );
 }

@@ -251,13 +251,17 @@ export function HistoryPane({
             ) : null}
             {centerView === "merge" && conflictEditor ? (
                 <MergeEditor
-                    branchName={currentBranch(snapshot)}
                     busy={busy}
                     closeKeybind={settings.keybinds.show_graph}
+                    context={{
+                        operation: snapshot?.operation_state ?? "normal",
+                        branchName: currentBranch(snapshot),
+                        source: snapshot?.operation_source ?? null,
+                        headShort: snapshot && snapshot.head.kind !== "unborn" ? snapshot.head.oid.slice(0, 7) : null,
+                    }}
                     details={conflictEditor}
                     onClose={closeConflictEditor}
                     onSave={saveConflictResult}
-                    operation={snapshot?.operation_state ?? "normal"}
                 />
             ) : centerView === "diff" ? (
                 <DiffViewer

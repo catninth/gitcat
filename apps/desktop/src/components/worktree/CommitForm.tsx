@@ -1,4 +1,5 @@
 import { useId } from "react";
+import type { ReactNode } from "react";
 
 import { cx } from "../../lib";
 import { matchesKeybind } from "../../lib/keybinds";
@@ -9,6 +10,12 @@ export interface CommitDraft {
   description: string;
   amend: boolean;
   signoff: boolean;
+  /**
+   * The operation message this draft was filled from. It keeps a message the
+   * user cleared from coming back, and lets the draft be cleared again when
+   * the operation ends with the prefilled text untouched.
+   */
+  prefilledFrom?: string;
 }
 
 const FIELD = "w-full rounded-[5px] border border-border bg-background leading-[1.45] outline-0 focus:border-accent";
@@ -43,18 +50,27 @@ function SummaryCounter({ remaining }: { remaining: number }) {
 }
 
 export function CommitForm({
+  actions,
   busy,
   canCommit,
   commitKeybind,
   draft,
+  notice,
+  options = true,
   stagedCount,
   onDraftChange,
   onSubmit,
 }: {
+  /** Replaces the commit button while an operation decides what pressing it means. */
+  actions?: ReactNode;
   busy: boolean;
   canCommit: boolean;
   commitKeybind: string;
   draft: CommitDraft;
+  /** A line above the message that is about the operation, not part of the message. */
+  notice?: ReactNode;
+  /** Amend and sign-off only make sense for an ordinary commit. */
+  options?: boolean;
   stagedCount: number;
   onDraftChange: (draft: CommitDraft) => void;
   onSubmit: () => void;
@@ -64,6 +80,7 @@ export function CommitForm({
       <label className="text-[10px] font-bold uppercase tracking-wider text-muted" htmlFor="commit-message">
         Commit message
       </label>
+      {notice ? <strong className="text-[11px] font-[650] text-warning">{notice}</strong> : null}
       <div className="relative">
         <Input
           className={cx(FIELD, "py-1.75 pl-2.25 pr-10")}
@@ -105,7 +122,7 @@ export function CommitForm({
         rows={4}
         value={draft.description}
       />
-      <div className="flex gap-3.5 text-[11px] text-muted">
+      {options ? <div className="flex gap-3.5 text-[11px] text-muted">
         <label className="flex items-center gap-1.25">
           <input
             checked={draft.amend}
@@ -126,14 +143,16 @@ export function CommitForm({
           />
           Sign off
         </label>
-      </div>
-      <Button disabled={!canCommit} onClick={onSubmit} tone="accent">
-        {draft.amend
-          ? "Amend commit"
-          : stagedCount > 0
-            ? `Commit Changes to ${stagedCount} files`
-            : "Stage Changes to Commit"}
-      </Button>
+      </div> : null}
+      {actions ?? (
+        <Button disabled={!canCommit} onClick={onSubmit} tone="accent">
+          {draft.amend
+            ? "Amend commit"
+            : stagedCount > 0
+              ? `Commit Changes to ${stagedCount} File${stagedCount === 1 ? "" : "s"}`
+              : "Stage Changes to Commit"}
+        </Button>
+      )}
     </div>
   );
 }

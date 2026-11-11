@@ -924,7 +924,7 @@ function App() {
                         <OperationBanner
                             busy={busy}
                             onAbort={abortActiveOperation}
-                            onContinue={continueActiveOperation}
+                            onContinue={() => void continueActiveOperation(null)}
                             onSkip={skipActiveOperation}
                             operation={snapshot?.operation_state ?? "normal"}
                             progress={snapshot?.operation_progress ?? null}

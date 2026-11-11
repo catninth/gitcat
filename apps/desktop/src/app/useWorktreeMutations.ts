@@ -3,6 +3,7 @@ import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction
 import type { FolderCollapseTarget } from "../components/file-tree";
 import type { ToastMessage } from "../components/ToastRegion";
 import { gitcatApi } from "../lib/api";
+import type { ConflictToast } from "../lib/conflicts";
 import type { FileViewMode, HistoryPage, RepositorySnapshot } from "../lib/types";
 import { createMutationQueue } from "./mutationQueue";
 import { expectedState, isMutationResult } from "./snapshot";
@@ -99,6 +100,7 @@ export function useWorktreeMutations({
             onError?: (error: unknown) => boolean;
             queueKey?: string;
             wipTitleHint?: string;
+            conflictToasts?: ConflictToast[] | (() => ConflictToast[]);
         },
     ): Promise<boolean> => {
         if (!activeRepository) return false;
@@ -120,11 +122,18 @@ export function useWorktreeMutations({
                         .catch((error) => showError("Refresh failed", error));
                 }
                 if (isMutationResult(result) && result.conflicts.length) {
-                    addToast({
-                        tone: "info",
-                        title: `${title}: attention required`,
-                        detail: `${result.conflicts.length} conflict${result.conflicts.length === 1 ? " remains" : "s remain"}. Resolve them in the Working tree panel.`,
-                    });
+                    const named = typeof options?.conflictToasts === "function"
+                        ? options.conflictToasts()
+                        : options?.conflictToasts;
+                    if (named?.length) {
+                        for (const toast of named) addToast({ tone: "error", ...toast });
+                    } else {
+                        addToast({
+                            tone: "info",
+                            title: `${title}: attention required`,
+                            detail: `${result.conflicts.length} conflict${result.conflicts.length === 1 ? " remains" : "s remain"}. Resolve them in the Working tree panel.`,
+                        });
+                    }
                 } else if (isMutationResult(result) && result.notice) {
                     // The command reported that it had nothing to do; saying
                     // only "complete" would claim work that never happened.

@@ -8,6 +8,7 @@ import { branchNameWithoutRemote, remoteNameOf, type BranchScope } from "../comp
 import type { ToastMessage } from "../components/ToastRegion";
 import { PULL_LABELS } from "../components/toolbar";
 import { gitcatApi } from "../lib/api";
+import { conflictToasts } from "../lib/conflicts";
 import { openExternal } from "../lib/platform";
 import type {
     BranchInfo,
@@ -22,6 +23,7 @@ import type {
 import {
     branchAcceptsPull,
     branchPushTarget,
+    currentBranch,
     linkRemoteName,
     remoteBranchUrl,
     remoteCommitUrl,
@@ -400,7 +402,11 @@ export function useContextMenuActions({
             case "merge_ref":
                 if (reference.displayName) {
                     const name = reference.displayName;
-                    void runMutation(`Merged ${name}`, (repository) => gitcatApi.mergeBranch(repository.repository_id, name));
+                    void runMutation(
+                        `Merged – ${name} into ${currentBranch(snapshot)}`,
+                        (repository) => gitcatApi.mergeBranch(repository.repository_id, name),
+                        { conflictToasts: conflictToasts("merge") },
+                    );
                 }
                 break;
             case "pull":
@@ -445,7 +451,9 @@ export function useContextMenuActions({
             case "stash_apply":
                 if (commit.stash) {
                     const { oid } = commit.stash;
-                    void runMutation("Stash applied", (repository) => gitcatApi.stashApply(repository.repository_id, oid, false));
+                    void runMutation("Stash applied", (repository) => gitcatApi.stashApply(repository.repository_id, oid, false), {
+                        conflictToasts: conflictToasts("stash_apply"),
+                    });
                 }
                 break;
             case "stash_pop":
@@ -454,7 +462,7 @@ export function useContextMenuActions({
                     void runMutation(
                         "Stash popped",
                         (repository) => gitcatApi.stashApply(repository.repository_id, oid, true),
-                        { wipTitleHint: commit.subject },
+                        { wipTitleHint: commit.subject, conflictToasts: conflictToasts("stash_apply") },
                     );
                 }
                 break;

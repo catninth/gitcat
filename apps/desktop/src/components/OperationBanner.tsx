@@ -1,6 +1,6 @@
 import { AlertTriangle, GitMerge } from "lucide-react";
 
-import { operationContinueLabel, operationTitle } from "../lib/conflicts";
+import { operationButtons, operationTitle } from "../lib/conflicts";
 import type { OperationProgress, RepositoryOperationState } from "../lib/types";
 import { Button } from "./ui";
 
@@ -62,7 +62,7 @@ export function OperationBanner({
 
       <div className="flex shrink-0 items-center gap-1.5">
         <Button compact disabled={busy} onClick={onContinue} tone="accent">
-          {operationContinueLabel(operation)}
+          {operationButtons(operation, 0, 1).primary.label}
         </Button>
         {operation === "merge" ? null : (
           <Button compact disabled={busy} onClick={onSkip}>Skip Commit</Button>

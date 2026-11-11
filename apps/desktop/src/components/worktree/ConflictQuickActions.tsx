@@ -2,40 +2,37 @@ import { GitMerge } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import { conflictSideLabels } from "../../lib/conflicts";
-import type { ConflictResolution, RepositoryOperationState, StatusEntry } from "../../lib/types";
+import type { ConflictSideLabels } from "../../lib/conflicts";
+import type { ConflictResolution, StatusEntry } from "../../lib/types";
 import { ContextMenu, type ContextAction } from "../ContextMenu";
 import { IconButton } from "../ui";
 
 const MENU_WIDTH = 244;
 
 export function ConflictQuickActions({
-  branchName,
   busy,
   entry,
+  labels,
   onOpen,
   onResolve,
-  operation,
 }: {
-  branchName: string;
   busy: boolean;
   entry: StatusEntry;
+  labels: ConflictSideLabels;
   onOpen: () => void;
   onResolve: (entry: StatusEntry, resolution: ConflictResolution) => void;
-  operation: RepositoryOperationState;
 }) {
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const resolve = (resolution: ConflictResolution) => {
     setMenuPosition(null);
     onResolve(entry, resolution);
   };
-  const labels = conflictSideLabels(operation, branchName);
   const actions: ContextAction[] = [
     { id: "open_editor", label: "Open merge editor…" },
-    { id: "ours", label: `Take ${labels.ours}`, separatorBefore: true },
-    { id: "theirs", label: `Take ${labels.theirs}` },
-    { id: "delete", label: "Delete file", danger: true },
-    { id: "mark_resolved", label: "Mark current working copy resolved", separatorBefore: true },
+    { id: "ours", label: `Take current (${labels.ours})`, separatorBefore: true },
+    { id: "theirs", label: `Take incoming (${labels.theirs})` },
+    { id: "mark_resolved", label: "Mark resolved" },
+    { id: "delete", label: "Delete file", danger: true, separatorBefore: true },
   ];
 
   return (

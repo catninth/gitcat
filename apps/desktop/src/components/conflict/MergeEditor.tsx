@@ -1,7 +1,7 @@
 import { AlertTriangle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { conflictSideLabels } from "../../lib/conflicts";
+import { conflictSideLabels, mergePaneTitle, type ConflictContext } from "../../lib/conflicts";
 import {
   baseSlices,
   composeMergeResult,
@@ -17,20 +17,19 @@ import {
 import type {
   ConflictFileDetails,
   ConflictLineEndingPolicy,
-  RepositoryOperationState,
 } from "../../lib/types";
 import { Button, IconButton, TextArea } from "../ui";
 import { MergePane, MergePaneHeader } from "./MergePane";
 import { contentMessage } from "./content";
 
 export interface MergeEditorProps {
-  branchName: string;
   busy: boolean;
   closeKeybind?: string;
+  /** Names the two sides: "Commit 8c69e9 on main" / "Applied patch or stash". */
+  context: ConflictContext;
   details: ConflictFileDetails;
   onClose: () => void;
   onSave: (text: string, lineEnding: ConflictLineEndingPolicy) => void;
-  operation: RepositoryOperationState;
 }
 
 function sideText(version: ConflictFileDetails["ours"]): string | undefined {
@@ -38,15 +37,14 @@ function sideText(version: ConflictFileDetails["ours"]): string | undefined {
 }
 
 export function MergeEditor({
-  branchName,
   busy,
   closeKeybind,
+  context,
   details,
   onClose,
   onSave,
-  operation,
 }: MergeEditorProps) {
-  const labels = conflictSideLabels(operation, branchName);
+  const labels = conflictSideLabels(context);
   const resultText = details.result.kind === "text" ? details.result.text ?? "" : undefined;
   const parsed = useMemo(() => parseConflictMarkers(resultText ?? ""), [resultText]);
   const conflicts = parsed.conflicts;
@@ -60,16 +58,25 @@ export function MergeEditor({
   // starts the composition over; keeping stale picks would silently apply them
   // to different content.
   const fingerprint = `${details.path}:${details.expected_state.result.sha256 ?? ""}:${conflicts.length}`;
+  const oursRef = useRef<HTMLDivElement>(null);
+  const theirsRef = useRef<HTMLDivElement>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setSelections(defaultSelections(conflicts.length));
     setManual(null);
     setLineEnding("preserve");
     setActiveConflict(0);
+    // A conflict deep in a long file is what the editor was opened for, so it
+    // opens there rather than at line one.
+    if (!conflicts.length) return;
+    const frame = requestAnimationFrame(() => {
+      for (const pane of [oursRef, theirsRef, outputRef]) {
+        pane.current?.querySelector<HTMLElement>('[data-conflict="0"]')?.scrollIntoView({ block: "center" });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [fingerprint]);
-
-  const oursRef = useRef<HTMLDivElement>(null);
-  const theirsRef = useRef<HTMLDivElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
 
   const oursText = sideText(details.ours);
@@ -152,6 +159,7 @@ export function MergeEditor({
         <AlertTriangle aria-hidden="true" className="shrink-0 text-warning" size={16} />
         <h2 className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[12px] font-[550] text-foreground" title={details.path}>
           {details.path}
+          {conflicts.length ? ` (${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"})` : ""}
         </h2>
         <small className="shrink-0 text-[10px] text-muted">
           {conflicts.length
@@ -181,8 +189,7 @@ export function MergeEditor({
               badge="A"
               badgeSide="ours"
               checked={allSelected("ours")}
-              detail={details.ours ? `${details.ours.oid.slice(0, 7)}${parsed.conflicts[0]?.oursLabel ? ` · ${parsed.conflicts[0].oursLabel}` : ""}` : undefined}
-              label={labels.ours}
+              label={<span title={labels.oursDescription}>{mergePaneTitle("ours", context)}</span>}
               onToggleAll={conflicts.length && manual === null ? () => toggleSide("ours") : undefined}
             />
           )}
@@ -201,8 +208,7 @@ export function MergeEditor({
               badge="B"
               badgeSide="theirs"
               checked={allSelected("theirs")}
-              detail={details.theirs ? `${details.theirs.oid.slice(0, 7)}${parsed.conflicts[0]?.theirsLabel ? ` · ${parsed.conflicts[0].theirsLabel}` : ""}` : undefined}
-              label={labels.theirs}
+              label={<span title={labels.theirsDescription}>{mergePaneTitle("theirs", context, parsed.conflicts[0]?.theirsLabel)}</span>}
               onToggleAll={conflicts.length && manual === null ? () => toggleSide("theirs") : undefined}
             />
           )}

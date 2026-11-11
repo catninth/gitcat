@@ -2,31 +2,28 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-import { conflictSideLabels } from "../../lib/conflicts";
-import type { ConflictResolution, RepositoryOperationState } from "../../lib/types";
+import type { ConflictSideLabels } from "../../lib/conflicts";
+import type { ConflictResolution } from "../../lib/types";
 import { ContextMenu, type ContextAction } from "../ContextMenu";
 import { IconButton } from "../ui";
 
 const MENU_WIDTH = 268;
 
 export function ConflictBulkMenu({
-  branchName,
   busy,
-  operation,
+  labels,
   onAutoResolveConflicts,
   onResolveAllConflicts,
 }: {
-  branchName: string;
   busy: boolean;
-  operation: RepositoryOperationState;
+  labels: ConflictSideLabels;
   onAutoResolveConflicts: () => void;
   onResolveAllConflicts: (resolution: ConflictResolution) => void;
 }) {
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const labels = conflictSideLabels(operation, branchName);
   const actions: ContextAction[] = [
-    { id: "ours", label: `Take ${labels.ours} for all` },
-    { id: "theirs", label: `Take ${labels.theirs} for all` },
+    { id: "ours", label: `Take current (${labels.ours}) for all` },
+    { id: "theirs", label: `Take incoming (${labels.theirs}) for all` },
     { id: "auto", label: "Reuse recorded resolutions", separatorBefore: true },
   ];
 

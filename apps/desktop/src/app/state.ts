@@ -1,4 +1,5 @@
 import type { gitcatApi } from "../lib/api";
+import type { ConflictToast } from "../lib/conflicts";
 import type { BranchScope } from "../components/ref-sidebar";
 import type { TabView } from "../components/top-tabs";
 import type { BranchInfo, CommitSummary, RefLabel, RepositoryInfo } from "../lib/types";
@@ -75,6 +76,14 @@ export type RunMutation = (
          * message of the stash that was just popped into it.
          */
         wipTitleHint?: string;
+        /**
+         * What to say when the command stops on conflicts, GitKraken style
+         * ("Merge Failed" / "There are merge conflicts ..."). A function is
+         * read once the command has finished, for commands whose wording
+         * depends on how far they got (a pull that stopped restoring its
+         * autostash). Without it the generic "attention required" toast shows.
+         */
+        conflictToasts?: ConflictToast[] | (() => ConflictToast[]);
     },
 ) => Promise<boolean>;
 

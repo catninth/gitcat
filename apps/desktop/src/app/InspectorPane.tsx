@@ -22,7 +22,7 @@ export interface InspectorPaneProps {
     avatarImages: ReadonlyMap<string, string>;
     busy: boolean;
     changeFileViewMode: (mode: FileViewMode) => void;
-    continueActiveOperation: () => void;
+    continueActiveOperation: (message: string | null) => Promise<boolean>;
     copySha: (oid: string) => Promise<void>;
     createPatchFile: (paths: string[], staged: boolean) => Promise<void>;
     details: CommitDetailsPanel | null;
@@ -108,6 +108,9 @@ export function InspectorPane({
                 onAbortOperation={abortActiveOperation}
                 operationProgress={snapshot.operation_progress ?? null}
                 operationSource={snapshot.operation_source ?? null}
+                operationMessage={snapshot.operation_message ?? null}
+                operationAutostash={snapshot.operation_autostash ?? false}
+                headShort={snapshot.head.kind === "unborn" ? null : snapshot.head.oid.slice(0, 7)}
                 onStage={stagePaths}
                 onUnstage={unstagePaths}
                 onDiscard={(paths) => {

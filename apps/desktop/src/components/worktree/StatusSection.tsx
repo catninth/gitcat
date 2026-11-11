@@ -2,7 +2,8 @@ import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
 import { cx } from "../../lib";
-import type { ConflictResolution, RepositoryOperationState, StatusEntry } from "../../lib/types";
+import type { ConflictSideLabels } from "../../lib/conflicts";
+import type { ConflictResolution, StatusEntry } from "../../lib/types";
 import { FileTree } from "../file-tree";
 import type { FileTreeItem, FileViewMode, FolderCollapse } from "../file-tree";
 import { ConflictQuickActions } from "./ConflictQuickActions";
@@ -17,8 +18,8 @@ export function StatusSection({
   actionPriority = false,
   actionTone,
   headerAction,
-  branchName = "current branch",
   busy,
+  conflictLabels,
   collapse,
   onAction,
   onEntryAction,
@@ -29,7 +30,6 @@ export function StatusSection({
   onOpenConflict,
   onToggle,
   open,
-  operation = "normal",
   plus = false,
   selectedId,
   viewMode,
@@ -41,8 +41,8 @@ export function StatusSection({
   actionPriority?: boolean;
   actionTone?: BulkButtonTone;
   headerAction?: ReactNode;
-  branchName?: string;
   busy: boolean;
+  conflictLabels?: ConflictSideLabels;
   collapse?: FolderCollapse;
   onAction: () => void;
   onEntryAction: (entry: StatusEntry) => void;
@@ -53,7 +53,6 @@ export function StatusSection({
   onOpenConflict?: (entry: StatusEntry) => void;
   onToggle: () => void;
   open: boolean;
-  operation?: RepositoryOperationState;
   plus?: boolean;
   selectedId?: string;
   viewMode: FileViewMode;
@@ -68,7 +67,7 @@ export function StatusSection({
           type="button"
         >
           {open ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
-          <span>{label} <b className="ml-0.75 text-foreground">{items.length}</b></span>
+          <span>{label} <b className="ml-0.75 text-foreground">({items.length})</b></span>
         </button>
         <span className="flex shrink-0 items-center gap-1">
           {actionDisabled || !items.length ? null : (
@@ -92,14 +91,13 @@ export function StatusSection({
           // a file full of conflict markers, which is not a diff worth reading.
           onSelect={(entry) => (entry.conflicted && onOpenConflict ? onOpenConflict(entry) : onOpenDiff(entry))}
           renderAction={(entry) => (
-            entry.conflicted && onResolveConflict ? (
+            entry.conflicted && onResolveConflict && conflictLabels ? (
               <ConflictQuickActions
-                branchName={branchName}
                 busy={busy}
                 entry={entry}
+                labels={conflictLabels}
                 onOpen={() => onOpenConflict?.(entry)}
                 onResolve={onResolveConflict}
-                operation={operation}
               />
             ) : (
               <StageButton busy={busy} onClick={() => onEntryAction(entry)} path={entry.path} plus={plus} />

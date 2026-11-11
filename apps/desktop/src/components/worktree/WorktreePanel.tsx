@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 
-import { conflictSideLabels } from "../../lib/conflicts";
+import { conflictSideLabels, type ConflictContext } from "../../lib/conflicts";
 import type { ConflictResolution, OperationProgress, OperationSource, RepositoryOperationState, StatusEntry, WorktreeStatus } from "../../lib/types";
 import { ContextMenu, type ContextAction } from "../ContextMenu";
 import { FileTreeControls } from "../file-tree";
@@ -11,8 +11,8 @@ import { SidePanel } from "../ui";
 import { CommitForm } from "./CommitForm";
 import type { CommitDraft } from "./CommitForm";
 import { ConflictBulkMenu } from "./ConflictBulkMenu";
-import { ConflictHeader } from "./ConflictHeader";
-import { OperationForm } from "./OperationForm";
+import { AutostashNotice, ConflictHeader } from "./ConflictHeader";
+import { OperationActions } from "./OperationActions";
 import { StatusSection } from "./StatusSection";
 import { WorktreeHeader } from "./WorktreeHeader";
 
@@ -50,7 +50,8 @@ interface WorktreePanelProps {
   onResolveConflicts: (paths: string[], resolution: ConflictResolution) => void;
   onOpenConflict: (entry: StatusEntry) => void;
   onAutoResolveConflicts: () => void;
-  onContinueOperation: () => void;
+  /** `message` replaces the one Git prepared; `null` keeps Git's. */
+  onContinueOperation: (message: string | null) => Promise<boolean>;
   onSkipOperation: () => void;
   onAbortOperation: () => void;
   commitKeybind?: string;
@@ -59,6 +60,10 @@ interface WorktreePanelProps {
   operation: RepositoryOperationState;
   operationProgress: OperationProgress | null;
   operationSource: OperationSource | null;
+  operationMessage?: string | null;
+  operationAutostash?: boolean;
+  /** Short HEAD commit id, for naming the current side of a stash apply. */
+  headShort?: string | null;
   branchName: string;
   draft: CommitDraft;
   onDraftChange: (draft: CommitDraft) => void;
@@ -129,6 +134,9 @@ export function WorktreePanel({
   operation,
   operationProgress,
   operationSource,
+  operationMessage = null,
+  operationAutostash = false,
+  headShort = null,
   branchName,
   draft,
   onDraftChange,
@@ -141,11 +149,46 @@ export function WorktreePanel({
   const stageable = unstaged;
   const conflicts = useMemo(() => status.entries.filter((entry) => entry.conflicted), [status.entries]);
   const operationPending = operation !== "normal" && operation !== "bisect";
+  // GitKraken's rule: while anything is conflicted the panel is about the
+  // conflicts and what is already resolved, nothing else. Unstaged and
+  // untracked files come back the moment the last conflict is resolved.
+  const inConflict = conflicts.length > 0;
+  const conflictContext = useMemo<ConflictContext>(
+    () => ({ operation, branchName, source: operationSource, headShort }),
+    [branchName, headShort, operation, operationSource],
+  );
+  const labels = useMemo(() => conflictSideLabels(conflictContext), [conflictContext]);
   const canCommit = operation === "normal"
     && !busy
     && Boolean(draft.message.trim())
     && Boolean(staged.length || draft.amend)
     && !conflicts.length;
+
+  // The message Git prepared for the operation fills an empty draft once. A
+  // draft the user wrote is never overwritten, and one they emptied stays
+  // empty; a prefilled message nobody touched leaves with the operation.
+  useEffect(() => {
+    const empty = !draft.message.trim() && !draft.description.trim();
+    // A rebase prepares a new message for every commit it replays; one left
+    // over from the previous step must not be committed with the next.
+    const untouched = draft.prefilledFrom !== undefined && buildCommitMessage(draft) === draft.prefilledFrom;
+    if (operationMessage) {
+      if ((empty || untouched) && draft.prefilledFrom !== operationMessage) {
+        const [summary, ...rest] = operationMessage.split("\n");
+        onDraftChange({
+          ...draft,
+          message: summary,
+          description: rest.join("\n").trim(),
+          amend: false,
+          prefilledFrom: operationMessage,
+        });
+      }
+    } else if (draft.prefilledFrom) {
+      onDraftChange(untouched
+        ? { ...draft, message: "", description: "", prefilledFrom: undefined }
+        : { ...draft, prefilledFrom: undefined });
+    }
+  }, [draft, onDraftChange, operationMessage]);
   const stagedItems = useMemo(() => toTreeItems(staged, "index"), [staged]);
   const unstagedItems = useMemo(() => toTreeItems(unstaged, "worktree"), [unstaged]);
   const conflictItems = useMemo(() => toTreeItems(conflicts, "worktree"), [conflicts]);
@@ -220,7 +263,6 @@ export function WorktreePanel({
     if (!folderMenu) return [];
     const empty = !folderMenu.entries.length;
     const conflictCount = folderMenu.conflicts.length;
-    const labels = conflictSideLabels(operation, branchName);
     const conflictActions: ContextAction[] = conflictCount
       ? [
         {
@@ -229,8 +271,8 @@ export function WorktreePanel({
           disabled: busy,
           separatorBefore: true,
         },
-        { id: "conflicts_ours", label: `Take ${labels.ours} for folder`, disabled: busy },
-        { id: "conflicts_theirs", label: `Take ${labels.theirs} for folder`, disabled: busy },
+        { id: "conflicts_ours", label: `Take current (${labels.ours}) for folder`, disabled: busy },
+        { id: "conflicts_theirs", label: `Take incoming (${labels.theirs}) for folder`, disabled: busy },
       ]
       : [];
     return [
@@ -244,7 +286,7 @@ export function WorktreePanel({
       ...conflictActions,
       { id: "open", label: "Open folder", separatorBefore: true },
     ];
-  }, [branchName, busy, folderMenu, operation]);
+  }, [busy, folderMenu, labels]);
 
   const executeFolderAction = (id: string) => {
     if (!folderMenu) return;
@@ -269,7 +311,14 @@ export function WorktreePanel({
   const submit = async () => {
     if (!canCommit) return;
     if (await onCommit(buildCommitMessage(draft), draft.amend, draft.signoff)) {
-      onDraftChange({ ...draft, message: "", description: "", amend: false });
+      onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
+    }
+  };
+
+  const continueOperation = async () => {
+    const message = buildCommitMessage(draft);
+    if (await onContinueOperation(message || null)) {
+      onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
     }
   };
 
@@ -281,13 +330,8 @@ export function WorktreePanel({
 
   return (
     <SidePanel aria-label="Working tree">
-      {conflicts.length ? (
-        <ConflictHeader
-          branchName={branchName}
-          operation={operation}
-          source={operationSource}
-          stashCount={status.stash_count}
-        />
+      {inConflict ? (
+        <ConflictHeader context={conflictContext} />
       ) : (
         <WorktreeHeader
           branchName={branchName}
@@ -299,25 +343,26 @@ export function WorktreePanel({
         />
       )}
 
+      {operationAutostash ? <AutostashNotice /> : null}
+
       <FileTreeControls mode={fileViewMode} onModeChange={onFileViewModeChange} />
 
-      {conflicts.length ? (
+      {inConflict ? (
         <StatusSection
           actionLabel="Mark All Resolved"
           actionTone="conflict"
-          branchName={branchName}
           busy={busy}
+          conflictLabels={labels}
           headerAction={(
             <ConflictBulkMenu
-              branchName={branchName}
               busy={busy}
+              labels={labels}
               onAutoResolveConflicts={onAutoResolveConflicts}
               onResolveAllConflicts={(resolution) => onResolveConflicts(conflicts.map((entry) => entry.path), resolution)}
-              operation={operation}
             />
           )}
           items={conflictItems}
-          label="Conflicted files"
+          label="Conflicted Files"
           onAction={() => onResolveConflicts(conflicts.map((entry) => entry.path), "mark_resolved")}
           onEntryAction={(entry) => onResolveConflicts([entry.path], "mark_resolved")}
           onFolderContextMenu={(folder, event) => openFolderMenu(folder, false, event)}
@@ -326,21 +371,19 @@ export function WorktreePanel({
           onResolveConflict={onResolveConflict}
           onToggle={() => setConflictsOpen((open) => !open)}
           open={conflictsOpen}
-          operation={operation}
           selectedId={selectedFile && !selectedFile.staged ? selectedFile.path : undefined}
           viewMode={fileViewMode}
         />
       ) : null}
 
-      {operationPending ? null : (
+      {inConflict ? null : (
         <StatusSection
           actionLabel="Stage all"
           actionDisabled={!stageable.length}
-          branchName={branchName}
           busy={busy}
           collapse={collapse && !collapse.staged ? collapse : undefined}
           items={unstagedItems}
-          label="Unstaged"
+          label="Unstaged Files"
           onAction={() => onStage(stageable.map((entry) => entry.path), "all")}
           onEntryAction={(entry) => onStage([entry.path])}
           onItemContextMenu={(entry, event) => openFileMenu(entry, false, event)}
@@ -360,7 +403,7 @@ export function WorktreePanel({
         busy={busy}
         collapse={collapse?.staged ? collapse : undefined}
         items={stagedItems}
-        label={operationPending ? "Resolved files" : "Staged"}
+        label={inConflict ? "Resolved Files" : "Staged Files"}
         onAction={() => onUnstage(staged.map((entry) => entry.path), "all")}
         onEntryAction={(entry) => onUnstage([entry.path])}
         onItemContextMenu={(entry, event) => openFileMenu(entry, true, event)}
@@ -372,27 +415,36 @@ export function WorktreePanel({
         viewMode={fileViewMode}
       />
 
-      {operationPending ? (
-        <OperationForm
-          busy={busy}
-          conflictCount={conflicts.length}
-          onAbort={onAbortOperation}
-          onContinue={onContinueOperation}
-          onSkip={onSkipOperation}
-          operation={operation}
-          progress={operationProgress}
-        />
-      ) : (
-        <CommitForm
-          busy={busy}
-          canCommit={canCommit}
-          commitKeybind={commitKeybind}
-          draft={draft}
-          onDraftChange={onDraftChange}
-          onSubmit={() => void submit()}
-          stagedCount={staged.length}
-        />
-      )}
+      <CommitForm
+        actions={operationPending || inConflict ? (
+          <OperationActions
+            busy={busy}
+            conflictCount={conflicts.length}
+            onAbort={onAbortOperation}
+            onCommit={() => void submit()}
+            onContinue={() => void continueOperation()}
+            onSkip={onSkipOperation}
+            operation={operation}
+            stagedCount={staged.length}
+          />
+        ) : undefined}
+        busy={busy}
+        canCommit={canCommit}
+        commitKeybind={commitKeybind}
+        draft={draft}
+        notice={operation === "rebase" && operationProgress
+          ? `Rebasing commit ${operationProgress.current} out of ${operationProgress.total}`
+          : undefined}
+        onDraftChange={onDraftChange}
+        // The keyboard shortcut only ever steps forward: skipping or
+        // aborting is a button press, never a reflex.
+        onSubmit={() => {
+          if (!operationPending) void submit();
+          else if (!inConflict && !busy) void continueOperation();
+        }}
+        options={!operationPending}
+        stagedCount={staged.length}
+      />
 
       {fileMenu ? createPortal(
         <ContextMenu
