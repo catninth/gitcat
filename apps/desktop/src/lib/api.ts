@@ -16,6 +16,8 @@ import type {
   ConflictLineEndingPolicy,
   ConflictPreflightResult,
   ConflictResolution,
+  ConflictResolutionWarning,
+  SubmoduleConflictDetails,
   ContinueOperation,
   DiffRequest,
   ExpectedState,
@@ -79,6 +81,9 @@ export interface GitCatCommands {
   diff(repositoryId: RepositoryId, request: DiffRequest): Promise<FileDiff>;
   conflictPreflight(repositoryId: RepositoryId, target: string): Promise<ConflictPreflightResult>;
   conflictDetails(repositoryId: RepositoryId, path: string): Promise<ConflictFileDetails>;
+  /** Paths that "mark resolved" would stage with leftover markers or as a Git helper copy. */
+  conflictResolutionWarnings(repositoryId: RepositoryId, paths: string[]): Promise<ConflictResolutionWarning[]>;
+  submoduleConflictDetails(repositoryId: RepositoryId, path: string): Promise<SubmoduleConflictDetails>;
   stagePaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
   unstagePaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
   discardPaths(repositoryId: RepositoryId, paths: string[]): Promise<MutationResult>;
@@ -166,15 +171,18 @@ export interface GitCatCommands {
     oid: string,
     message: string | null,
   ): Promise<MutationResult>;
+  /** `commit: false` applies the change with `--no-commit` and leaves it staged. */
   cherryPick(
     repositoryId: RepositoryId,
     oid: string,
     mainlineParent?: number | null,
+    commit?: boolean,
   ): Promise<MutationResult>;
   revertCommit(
     repositoryId: RepositoryId,
     oid: string,
     mainlineParent?: number | null,
+    commit?: boolean,
   ): Promise<MutationResult>;
   resetCommit(
     repositoryId: RepositoryId,
@@ -187,9 +195,11 @@ export interface GitCatCommands {
     repositoryId: RepositoryId,
     oid: string,
   ): Promise<CommitActionAvailability[]>;
+  /** `message` replaces the commit message Git prepared for the step being continued. */
   continueOperation(
     repositoryId: RepositoryId,
     operation: ContinueOperation,
+    message?: string | null,
   ): Promise<MutationResult>;
   abortOperation(
     repositoryId: RepositoryId,
@@ -295,6 +305,10 @@ export function createTauriGitCatApi(): GitCatApi {
       invokeTauri("file_diff", { repositoryId, request }),
     conflictPreflight: (repositoryId, target) =>
       invokeTauri("conflicts_preflight", { repositoryId, target }),
+    conflictResolutionWarnings: (repositoryId, paths) =>
+      invokeTauri("conflict_resolution_warnings", { repositoryId, paths }),
+    submoduleConflictDetails: (repositoryId, path) =>
+      invokeTauri("submodule_conflict_details", { repositoryId, path }),
     conflictDetails: (repositoryId, path) =>
       invokeTauri("conflict_details", { repositoryId, path }),
     stagePaths: (repositoryId, paths) =>
@@ -359,10 +373,10 @@ export function createTauriGitCatApi(): GitCatApi {
       invokeTauri("commit_checkout", { repositoryId, oid }),
     createTag: (repositoryId, name, oid, message) =>
       invokeTauri("tag_create", { repositoryId, name, oid, message }),
-    cherryPick: (repositoryId, oid, mainlineParent = null) =>
-      invokeTauri("commit_cherry_pick", { repositoryId, oid, mainlineParent }),
-    revertCommit: (repositoryId, oid, mainlineParent = null) =>
-      invokeTauri("commit_revert", { repositoryId, oid, mainlineParent }),
+    cherryPick: (repositoryId, oid, mainlineParent = null, commit = true) =>
+      invokeTauri("commit_cherry_pick", { repositoryId, oid, mainlineParent, commit }),
+    revertCommit: (repositoryId, oid, mainlineParent = null, commit = true) =>
+      invokeTauri("commit_revert", { repositoryId, oid, mainlineParent, commit }),
     resetCommit: (repositoryId, oid, mode, confirmed, expected) =>
       invokeTauri("commit_reset", {
         repositoryId,
@@ -373,8 +387,8 @@ export function createTauriGitCatApi(): GitCatApi {
       }),
     commitActionAvailability: (repositoryId, oid) =>
       invokeTauri("commit_action_availability", { repositoryId, oid }),
-    continueOperation: (repositoryId, operation) =>
-      invokeTauri("operation_continue", { repositoryId, operation }),
+    continueOperation: (repositoryId, operation, message = null) =>
+      invokeTauri("operation_continue", { repositoryId, operation, message }),
     abortOperation: (repositoryId, operation) =>
       invokeTauri("operation_abort", { repositoryId, operation }),
     skipOperation: (repositoryId, operation) =>

@@ -257,6 +257,28 @@ impl CoreApi {
         self.backend.conflict_preflight(&path, target).await
     }
 
+    pub async fn conflict_resolution_warnings(
+        &self,
+        repository_id: &RepositoryId,
+        paths: &[String],
+    ) -> ApiResult<Vec<ConflictResolutionWarning>> {
+        let repository_path = self.repository_path(repository_id).await?;
+        self.backend
+            .conflict_resolution_warnings(&repository_path, paths)
+            .await
+    }
+
+    pub async fn submodule_conflict_details(
+        &self,
+        repository_id: &RepositoryId,
+        path: &str,
+    ) -> ApiResult<SubmoduleConflictDetails> {
+        let repository_path = self.repository_path(repository_id).await?;
+        self.backend
+            .submodule_conflict_details(&repository_path, path)
+            .await
+    }
+
     pub async fn conflict_details(
         &self,
         repository_id: &RepositoryId,
@@ -632,9 +654,12 @@ impl CoreApi {
         repository_id: &RepositoryId,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult> {
         self.mutate(repository_id, |backend, path| async move {
-            backend.cherry_pick(&path, oid, mainline_parent).await
+            backend
+                .cherry_pick(&path, oid, mainline_parent, commit)
+                .await
         })
         .await
     }
@@ -644,9 +669,12 @@ impl CoreApi {
         repository_id: &RepositoryId,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult> {
         self.mutate(repository_id, |backend, path| async move {
-            backend.revert_commit(&path, oid, mainline_parent).await
+            backend
+                .revert_commit(&path, oid, mainline_parent, commit)
+                .await
         })
         .await
     }
@@ -684,9 +712,10 @@ impl CoreApi {
         &self,
         repository_id: &RepositoryId,
         operation: ContinueOperation,
+        message: Option<&str>,
     ) -> ApiResult<MutationResult> {
         self.mutate(repository_id, |backend, path| async move {
-            backend.continue_operation(&path, operation).await
+            backend.continue_operation(&path, operation, message).await
         })
         .await
     }
@@ -1495,6 +1524,7 @@ mod tests {
             path: &Path,
             _oid: &str,
             _mainline_parent: Option<u32>,
+            _commit: bool,
         ) -> ApiResult<MutationResult> {
             self.mutation("cherry_pick", path).await
         }
@@ -1504,6 +1534,7 @@ mod tests {
             path: &Path,
             _oid: &str,
             _mainline_parent: Option<u32>,
+            _commit: bool,
         ) -> ApiResult<MutationResult> {
             self.mutation("revert_commit", path).await
         }
@@ -1531,6 +1562,7 @@ mod tests {
             &self,
             path: &Path,
             _operation: ContinueOperation,
+            _message: Option<&str>,
         ) -> ApiResult<MutationResult> {
             self.mutation("continue_operation", path).await
         }
@@ -1833,6 +1865,8 @@ mod tests {
             operation_state: RepositoryOperationState::Normal,
             operation_progress: None,
             operation_source: None,
+            operation_message: None,
+            operation_autostash: false,
             status: WorktreeStatus::default(),
             local_branches: Vec::new(),
             remote_branches: Vec::new(),

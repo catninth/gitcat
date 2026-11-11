@@ -9,13 +9,13 @@ use gitcat_contracts::{
     ApiError, ApiResult, AppMetadata, AppSettings, AvatarEntry, AvatarLookup, AvatarSettings,
     CheckSummary, CloneOptions, CommitActionAvailability, CommitDetails, CommitOptions,
     CommitSearchQuery, CommitSearchResult, ConflictExpectedState, ConflictFileDetails,
-    ConflictLineEndingPolicy, ConflictPreflightResult, ConflictResolution, ContinueOperation,
-    DeviceAuthorization, DiffRequest, ErrorCode, ExpectedState, FetchOptions, FileDiff,
-    ForgeAccount, ForgeCredential, ForgeRepo, ForgeRepository, GitVersion, HistoryPage,
-    HistoryQuery, LinePatchRequest, LoginPoll, MAX_UI_ZOOM_PERCENT, MIN_UI_ZOOM_PERCENT,
-    MutationResult, NewRepository, PersistedState, PullOptions, PullRequestInfo, PushOptions,
-    RepositoryId, RepositoryInfo, RepositorySnapshot, ResetMode, StashEntry, SubmoduleInfo,
-    SubmoduleSyncAction,
+    ConflictLineEndingPolicy, ConflictPreflightResult, ConflictResolution,
+    ConflictResolutionWarning, ContinueOperation, DeviceAuthorization, DiffRequest, ErrorCode,
+    ExpectedState, FetchOptions, FileDiff, ForgeAccount, ForgeCredential, ForgeRepo,
+    ForgeRepository, GitVersion, HistoryPage, HistoryQuery, LinePatchRequest, LoginPoll,
+    MAX_UI_ZOOM_PERCENT, MIN_UI_ZOOM_PERCENT, MutationResult, NewRepository, PersistedState,
+    PullOptions, PullRequestInfo, PushOptions, RepositoryId, RepositoryInfo, RepositorySnapshot,
+    ResetMode, StashEntry, SubmoduleConflictDetails, SubmoduleInfo, SubmoduleSyncAction,
 };
 use gitcat_core::{CoreApi, JsonStateStore, export_settings, import_settings};
 use gitcat_forge::{AvatarService, ForgeAuth, ForgeService, TokenStore};
@@ -285,6 +285,25 @@ async fn conflicts_preflight(
     target: String,
 ) -> ApiResult<ConflictPreflightResult> {
     core.conflict_preflight(&repository_id, &target).await
+}
+
+#[tauri::command]
+async fn conflict_resolution_warnings(
+    core: State<'_, Arc<CoreApi>>,
+    repository_id: RepositoryId,
+    paths: Vec<String>,
+) -> ApiResult<Vec<ConflictResolutionWarning>> {
+    core.conflict_resolution_warnings(&repository_id, &paths)
+        .await
+}
+
+#[tauri::command]
+async fn submodule_conflict_details(
+    core: State<'_, Arc<CoreApi>>,
+    repository_id: RepositoryId,
+    path: String,
+) -> ApiResult<SubmoduleConflictDetails> {
+    core.submodule_conflict_details(&repository_id, &path).await
 }
 
 #[tauri::command]
@@ -636,9 +655,15 @@ async fn commit_cherry_pick(
     repository_id: RepositoryId,
     oid: String,
     mainline_parent: Option<u32>,
+    commit: Option<bool>,
 ) -> ApiResult<MutationResult> {
-    core.cherry_pick(&repository_id, &oid, mainline_parent)
-        .await
+    core.cherry_pick(
+        &repository_id,
+        &oid,
+        mainline_parent,
+        commit.unwrap_or(true),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -647,9 +672,15 @@ async fn commit_revert(
     repository_id: RepositoryId,
     oid: String,
     mainline_parent: Option<u32>,
+    commit: Option<bool>,
 ) -> ApiResult<MutationResult> {
-    core.revert_commit(&repository_id, &oid, mainline_parent)
-        .await
+    core.revert_commit(
+        &repository_id,
+        &oid,
+        mainline_parent,
+        commit.unwrap_or(true),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -679,8 +710,10 @@ async fn operation_continue(
     core: State<'_, Arc<CoreApi>>,
     repository_id: RepositoryId,
     operation: ContinueOperation,
+    message: Option<String>,
 ) -> ApiResult<MutationResult> {
-    core.continue_operation(&repository_id, operation).await
+    core.continue_operation(&repository_id, operation, message.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -1007,6 +1040,8 @@ pub fn run() {
             file_diff,
             conflicts_preflight,
             conflict_details,
+            conflict_resolution_warnings,
+            submodule_conflict_details,
             paths_stage,
             paths_unstage,
             paths_discard,

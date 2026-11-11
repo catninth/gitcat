@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use gitcat_contracts::{
     ApiError, ApiResult, BranchInfo, ChangeKind, ChangedFile, CommitDetails, CommitSearchHit,
-    CommitSummary, CommitTime, DiffHunk, DiffLine, DiffLineKind, DiffStats, FileDiff, GraphCell,
-    HeadState, Identity, LineStats, RefKind, RefLabel, StashEntry, StashRef, StatusEntry,
-    WorktreeStatus,
+    CommitSummary, CommitTime, ConflictKind, DiffHunk, DiffLine, DiffLineKind, DiffStats, FileDiff,
+    GraphCell, HeadState, Identity, LineStats, RefKind, RefLabel, StashEntry, StashRef,
+    StatusEntry, WorktreeStatus,
 };
 
 use gitcat_contracts::ErrorCode;
@@ -159,6 +159,7 @@ pub(crate) fn parse_status(output: &[u8]) -> ApiResult<ParsedStatus> {
                 index: None,
                 worktree: Some(ChangeKind::Untracked),
                 conflicted: false,
+                conflict_kind: None,
                 submodule: false,
                 index_stats: None,
                 worktree_stats: None,
@@ -169,6 +170,7 @@ pub(crate) fn parse_status(output: &[u8]) -> ApiResult<ParsedStatus> {
                 index: None,
                 worktree: Some(ChangeKind::Ignored),
                 conflicted: false,
+                conflict_kind: None,
                 submodule: false,
                 index_stats: None,
                 worktree_stats: None,
@@ -242,9 +244,25 @@ fn status_entry(
         index,
         worktree,
         conflicted,
+        conflict_kind: if conflicted { conflict_kind(xy) } else { None },
         submodule: !submodule.starts_with(b"N..."),
         index_stats: None,
         worktree_stats: None,
+    })
+}
+
+/// Porcelain v2 spells every unmerged shape as an XY pair; `U` marks the side
+/// that modified the path, `A` and `D` the side that added or deleted it.
+pub(crate) fn conflict_kind(xy: &[u8]) -> Option<ConflictKind> {
+    Some(match xy {
+        b"UU" => ConflictKind::BothModified,
+        b"AA" => ConflictKind::BothAdded,
+        b"DD" => ConflictKind::BothDeleted,
+        b"AU" => ConflictKind::AddedByUs,
+        b"UA" => ConflictKind::AddedByThem,
+        b"DU" => ConflictKind::DeletedByUs,
+        b"UD" => ConflictKind::DeletedByThem,
+        _ => return None,
     })
 }
 
@@ -966,6 +984,43 @@ mod tests {
             Some("src/old name.rs")
         );
         assert!(parsed.status.entries[2].conflicted);
+        assert_eq!(
+            parsed.status.entries[2].conflict_kind,
+            Some(ConflictKind::BothModified)
+        );
+        assert_eq!(parsed.status.entries[0].conflict_kind, None);
+    }
+
+    #[test]
+    fn classifies_every_unmerged_status_code() {
+        let cases = [
+            ("UU", ConflictKind::BothModified),
+            ("AA", ConflictKind::BothAdded),
+            ("DD", ConflictKind::BothDeleted),
+            ("AU", ConflictKind::AddedByUs),
+            ("UA", ConflictKind::AddedByThem),
+            ("DU", ConflictKind::DeletedByUs),
+            ("UD", ConflictKind::DeletedByThem),
+        ];
+        for (xy, kind) in cases {
+            let record = format!(
+                "# branch.oid 0123456789abcdef\0# branch.head main\0u {xy} N... 100644 100644 100644 100644 a b c d file.txt\0"
+            );
+            let parsed = parse_status(record.as_bytes()).unwrap();
+            let entry = &parsed.status.entries[0];
+            assert!(entry.conflicted, "{xy} is a conflict");
+            assert_eq!(entry.conflict_kind, Some(kind), "{xy}");
+            assert!(!entry.submodule);
+        }
+        let submodule = parse_status(
+            b"# branch.oid 0123456789abcdef\0# branch.head main\0u UU S... 160000 160000 160000 160000 a b c d libmod\0",
+        )
+        .unwrap();
+        assert!(submodule.status.entries[0].submodule);
+        assert_eq!(
+            submodule.status.entries[0].conflict_kind,
+            Some(ConflictKind::BothModified)
+        );
     }
 
     #[test]

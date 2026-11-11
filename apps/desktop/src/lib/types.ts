@@ -87,12 +87,23 @@ export interface LineStats {
   deletions: number;
 }
 
+export type ConflictKind =
+  | "both_modified"
+  | "both_added"
+  | "both_deleted"
+  | "added_by_us"
+  | "added_by_them"
+  | "deleted_by_us"
+  | "deleted_by_them";
+
 export interface StatusEntry {
   path: string;
   old_path?: string;
   index?: ChangeKind;
   worktree?: ChangeKind;
   conflicted: boolean;
+  /** Which sides touched a conflicted path ("us" = index stage 2, "them" = stage 3). */
+  conflict_kind?: ConflictKind;
   submodule: boolean;
   index_stats?: LineStats;
   worktree_stats?: LineStats;
@@ -311,6 +322,10 @@ export interface RepositorySnapshot {
   local_branches: BranchInfo[];
   remote_branches: BranchInfo[];
   default_conflict_target?: string;
+  /** Commit message Git prepared for the interrupted operation, comments removed. */
+  operation_message?: string;
+  /** Local changes Git set aside for this operation; they come back when it ends. */
+  operation_autostash?: boolean;
   tags: RefLabel[];
   remotes: RemoteInfo[];
   capabilities: RepositoryCapabilities;
@@ -734,7 +749,29 @@ export interface KeybindSettings {
   commit: string;
 }
 
-export type ConflictResolution = "ours" | "theirs" | "mark_resolved" | "delete";
+export type ConflictResolution = "ours" | "theirs" | "base" | "mark_resolved" | "delete";
+
+export type ConflictWarningReason = "markers" | "helper_file";
+
+export interface ConflictResolutionWarning {
+  path: string;
+  reason: ConflictWarningReason;
+}
+
+export interface SubmoduleConflictSide {
+  oid: string;
+  summary?: string;
+  author?: string;
+  committed_at?: number;
+}
+
+export interface SubmoduleConflictDetails {
+  path: string;
+  current?: SubmoduleConflictSide;
+  base?: SubmoduleConflictSide;
+  ours?: SubmoduleConflictSide;
+  theirs?: SubmoduleConflictSide;
+}
 
 export type ConflictContentKind = "text" | "binary" | "too_large" | "missing";
 export type ConflictLineEnding = "none" | "lf" | "cr_lf" | "mixed";

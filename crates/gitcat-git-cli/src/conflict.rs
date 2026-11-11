@@ -489,6 +489,211 @@ impl GitCliBackend {
     }
 }
 
+impl GitCliBackend {
+    /// Stages one recorded index version as the resolution and, for a file,
+    /// writes it to the working copy. A stage-0 entry replaces every unmerged
+    /// stage of the path, so this works for binary files, symlinks and
+    /// submodule pointers alike -- which `checkout --ours/--theirs` does not.
+    pub(crate) async fn take_index_version(
+        &self,
+        path: &Path,
+        conflict_path: &str,
+        entry: &UnmergedIndexEntry,
+    ) -> ApiResult<MutationResult> {
+        let cacheinfo = format!("{},{},{}", entry.mode, entry.oid, conflict_path);
+        let args = vec![
+            OsString::from("update-index"),
+            OsString::from("--cacheinfo"),
+            OsString::from(cacheinfo),
+        ];
+        let result = self
+            .mutate(path, args, None, CancellationToken::new(), false)
+            .await?;
+        if entry.mode == GITLINK_MODE {
+            return Ok(result);
+        }
+        let mut args = os_args(&["--literal-pathspecs", "checkout", "--"]);
+        args.push(conflict_path.into());
+        self.mutate(path, args, None, CancellationToken::new(), false)
+            .await
+    }
+
+    pub(crate) async fn resolution_warnings(
+        &self,
+        path: &Path,
+        paths: &[String],
+    ) -> ApiResult<Vec<ConflictResolutionWarning>> {
+        let targets = if paths.is_empty() {
+            self.conflicted_paths(path).await?
+        } else {
+            for target in paths {
+                validate_relative_path(target)?;
+            }
+            paths.to_vec()
+        };
+        let root = path.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let mut warnings = Vec::new();
+            for target in targets {
+                if is_helper_copy(&root, &target) {
+                    warnings.push(ConflictResolutionWarning {
+                        path: target.clone(),
+                        reason: ConflictWarningReason::HelperFile,
+                    });
+                }
+                if worktree_has_conflict_markers(&root.join(&target)) {
+                    warnings.push(ConflictResolutionWarning {
+                        path: target,
+                        reason: ConflictWarningReason::Markers,
+                    });
+                }
+            }
+            warnings
+        })
+        .await
+        .map_err(blocking_conflict_task_error)
+    }
+
+    pub(crate) async fn describe_submodule_conflict(
+        &self,
+        path: &Path,
+        conflict_path: &str,
+    ) -> ApiResult<SubmoduleConflictDetails> {
+        self.ensure_conflicted_path(path, conflict_path).await?;
+        let entries = self.unmerged_index_entries(path, conflict_path).await?;
+        if !entries.iter().any(|entry| entry.mode == GITLINK_MODE) {
+            return Err(ApiError::new(
+                ErrorCode::InvalidRequest,
+                "Selected conflict is not a submodule pointer",
+            )
+            .with_details(conflict_path.to_owned()));
+        }
+        let submodule = path.join(conflict_path);
+        // An uninitialized submodule is an empty folder, and Git run there would
+        // answer for the parent repository instead.
+        let checked_out = submodule.join(".git").exists();
+        let current = if checked_out {
+            let output = self
+                .read_allow_failure(
+                    Some(&submodule),
+                    os_args(&["rev-parse", "--verify", "HEAD"]),
+                )
+                .await?;
+            let oid = output.stdout_lossy().trim().to_owned();
+            if output.success() && is_full_oid(&oid) {
+                Some(self.submodule_side(&submodule, true, oid).await?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let side = |stage| {
+            entry_at_stage(&entries, stage)
+                .filter(|entry| entry.mode == GITLINK_MODE)
+                .map(|entry| entry.oid.clone())
+        };
+        let mut described = Vec::new();
+        for oid in [side(1), side(2), side(3)] {
+            described.push(match oid {
+                Some(oid) => Some(self.submodule_side(&submodule, checked_out, oid).await?),
+                None => None,
+            });
+        }
+        let mut described = described.into_iter();
+        Ok(SubmoduleConflictDetails {
+            path: conflict_path.to_owned(),
+            current,
+            base: described.next().flatten(),
+            ours: described.next().flatten(),
+            theirs: described.next().flatten(),
+        })
+    }
+
+    async fn submodule_side(
+        &self,
+        submodule: &Path,
+        checked_out: bool,
+        oid: String,
+    ) -> ApiResult<SubmoduleConflictSide> {
+        let mut side = SubmoduleConflictSide {
+            oid,
+            summary: None,
+            author: None,
+            committed_at: None,
+        };
+        if !checked_out {
+            return Ok(side);
+        }
+        let output = self
+            .read_allow_failure(
+                Some(submodule),
+                vec![
+                    "log".into(),
+                    "-1".into(),
+                    "--format=%s%x00%an%x00%ct".into(),
+                    side.oid.clone().into(),
+                    "--".into(),
+                ],
+            )
+            .await?;
+        if output.success() {
+            let text = output.stdout_lossy();
+            let mut fields = text.trim_end().splitn(3, '\0');
+            side.summary = fields.next().map(str::to_owned).filter(|s| !s.is_empty());
+            side.author = fields.next().map(str::to_owned).filter(|s| !s.is_empty());
+            side.committed_at = fields.next().and_then(|value| value.trim().parse().ok());
+        }
+        Ok(side)
+    }
+}
+
+pub(crate) const GITLINK_MODE: &str = "160000";
+
+/// `fd~HEAD` next to a directory `fd`: the copy Git writes aside when a file
+/// and a directory claim the same name. Staging it as resolved would commit a
+/// file nobody created.
+pub(crate) fn is_helper_copy(root: &Path, relative: &str) -> bool {
+    let Some((prefix, side)) = relative.rsplit_once('~') else {
+        return false;
+    };
+    !prefix.is_empty() && !side.is_empty() && !side.contains('/') && root.join(prefix).is_dir()
+}
+
+/// A complete marker block left in the working copy. Only regular text files
+/// within the editor's size limit are read; anything else cannot be checked
+/// and is not reported.
+pub(crate) fn worktree_has_conflict_markers(file: &Path) -> bool {
+    let Ok(metadata) = fs::symlink_metadata(file) else {
+        return false;
+    };
+    if !metadata.is_file() || metadata.len() > MAX_CONFLICT_TEXT_BYTES as u64 {
+        return false;
+    }
+    let Ok(bytes) = fs::read(file) else {
+        return false;
+    };
+    if bytes.contains(&0) {
+        return false;
+    }
+    has_conflict_markers(&String::from_utf8_lossy(&bytes))
+}
+
+pub(crate) fn has_conflict_markers(text: &str) -> bool {
+    let (mut open, mut middle) = (false, false);
+    for line in text.lines() {
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if line.starts_with("<<<<<<<") {
+            open = true;
+        } else if open && line == "=======" {
+            middle = true;
+        } else if middle && line.starts_with(">>>>>>>") {
+            return true;
+        }
+    }
+    false
+}
+
 pub(crate) fn blocking_conflict_task_error(error: tokio::task::JoinError) -> ApiError {
     ApiError::new(
         ErrorCode::Internal,

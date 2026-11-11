@@ -88,6 +88,25 @@ pub trait GitBackend: Send + Sync {
         path: &Path,
         target: &str,
     ) -> ApiResult<ConflictPreflightResult>;
+    /// Conflicted paths that "mark resolved" would stage with leftover conflict
+    /// markers or as a Git helper copy (`path~HEAD`).
+    async fn conflict_resolution_warnings(
+        &self,
+        _path: &Path,
+        _paths: &[String],
+    ) -> ApiResult<Vec<ConflictResolutionWarning>> {
+        Ok(Vec::new())
+    }
+    async fn submodule_conflict_details(
+        &self,
+        _path: &Path,
+        _conflict_path: &str,
+    ) -> ApiResult<SubmoduleConflictDetails> {
+        Err(ApiError::new(
+            ErrorCode::UnsupportedOperation,
+            "Submodule conflicts are not supported by this backend",
+        ))
+    }
     async fn conflict_details(
         &self,
         path: &Path,
@@ -229,17 +248,20 @@ pub trait GitBackend: Send + Sync {
         oid: &str,
         message: Option<&str>,
     ) -> ApiResult<MutationResult>;
+    /// `commit: false` applies the change with `--no-commit` and leaves it staged.
     async fn cherry_pick(
         &self,
         path: &Path,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult>;
     async fn revert_commit(
         &self,
         path: &Path,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult>;
     async fn reset_to_commit(
         &self,
@@ -254,10 +276,13 @@ pub trait GitBackend: Send + Sync {
         oid: &str,
     ) -> ApiResult<Vec<CommitActionAvailability>>;
 
+    /// `message`, when given, replaces the commit message Git prepared for the
+    /// step being continued.
     async fn continue_operation(
         &self,
         path: &Path,
         operation: ContinueOperation,
+        message: Option<&str>,
     ) -> ApiResult<MutationResult>;
     async fn abort_operation(
         &self,

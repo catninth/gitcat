@@ -22,6 +22,8 @@ import type {
   ConflictLineEndingPolicy,
   ConflictPreflightResult,
   ConflictResolution,
+  ConflictResolutionWarning,
+  SubmoduleConflictDetails,
   ContinueOperation,
   DiffRequest,
   ExpectedState,
@@ -911,6 +913,23 @@ class DemoGitCatApi implements GitCatApi {
     return this.mutation();
   }
 
+  async conflictResolutionWarnings(repositoryId: RepositoryId, _paths: string[]): Promise<ConflictResolutionWarning[]> {
+    await delay();
+    this.ensureRepository(repositoryId);
+    return [];
+  }
+
+  async submoduleConflictDetails(repositoryId: RepositoryId, path: string): Promise<SubmoduleConflictDetails> {
+    await delay();
+    this.ensureRepository(repositoryId);
+    return {
+      path,
+      current: { oid: oids[8], summary: "current submodule commit", author: "Demo", committed_at: 1_760_000_000 },
+      ours: { oid: oids[8], summary: "current submodule commit", author: "Demo", committed_at: 1_760_000_000 },
+      theirs: { oid: oids[9], summary: "incoming submodule commit", author: "Demo", committed_at: 1_760_000_100 },
+    };
+  }
+
   async conflictDetails(repositoryId: RepositoryId, path: string): Promise<ConflictFileDetails> {
     await delay();
     this.ensureRepository(repositoryId);
@@ -1215,6 +1234,7 @@ class DemoGitCatApi implements GitCatApi {
     repositoryId: RepositoryId,
     _oid: string,
     _mainlineParent: number | null = null,
+    _commit = true,
   ): Promise<MutationResult> {
     await delay();
     this.ensureRepository(repositoryId);
@@ -1225,6 +1245,7 @@ class DemoGitCatApi implements GitCatApi {
     repositoryId: RepositoryId,
     _oid: string,
     _mainlineParent: number | null = null,
+    _commit = true,
   ): Promise<MutationResult> {
     await delay();
     this.ensureRepository(repositoryId);
@@ -1341,6 +1362,7 @@ class DemoGitCatApi implements GitCatApi {
   async continueOperation(
     repositoryId: RepositoryId,
     _operation: ContinueOperation,
+    _message: string | null = null,
   ): Promise<MutationResult> {
     await delay();
     this.ensureRepository(repositoryId);

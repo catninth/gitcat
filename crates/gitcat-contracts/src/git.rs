@@ -142,6 +142,15 @@ pub struct RepositorySnapshot {
     pub remote_branches: Vec<BranchInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_conflict_target: Option<String>,
+    /// The commit message Git prepared for the interrupted operation: `MERGE_MSG`
+    /// for a merge, cherry-pick or revert, the replayed commit's message for a
+    /// rebase. Comment lines and trailing blank lines are already dropped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_message: Option<String>,
+    /// Local changes Git set aside for this operation (`rebase-merge/autostash`,
+    /// `MERGE_AUTOSTASH`) that come back when it finishes or is aborted.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub operation_autostash: bool,
     pub tags: Vec<RefLabel>,
     pub remotes: Vec<RemoteInfo>,
     pub capabilities: RepositoryCapabilities,
@@ -177,11 +186,27 @@ pub struct StatusEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worktree: Option<ChangeKind>,
     pub conflicted: bool,
+    /// Which sides touched a conflicted path, from the porcelain `u XY` code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conflict_kind: Option<ConflictKind>,
     pub submodule: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_stats: Option<LineStats>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree_stats: Option<LineStats>,
+}
+
+/// The shape of an unmerged path. "Us" is index stage 2, "them" stage 3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictKind {
+    BothModified,
+    BothAdded,
+    BothDeleted,
+    AddedByUs,
+    AddedByThem,
+    DeletedByUs,
+    DeletedByThem,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -577,8 +602,54 @@ pub enum ContinueOperation {
 pub enum ConflictResolution {
     Ours,
     Theirs,
+    /// The common ancestor's version (index stage 1), staged as the result.
+    Base,
     MarkResolved,
     Delete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictWarningReason {
+    /// The working copy still has a complete `<<<<<<<` / `=======` / `>>>>>>>` block.
+    Markers,
+    /// `path~<side>`: the copy Git wrote aside for a file/directory conflict.
+    HelperFile,
+}
+
+/// Something about a conflicted path that marking it resolved would commit
+/// without the user having seen it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictResolutionWarning {
+    pub path: String,
+    pub reason: ConflictWarningReason,
+}
+
+/// One side of a submodule (gitlink) conflict, described from the submodule's
+/// own repository when it has the commit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubmoduleConflictSide {
+    pub oid: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub committed_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubmoduleConflictDetails {
+    pub path: String,
+    /// What the submodule has checked out right now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current: Option<SubmoduleConflictSide>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base: Option<SubmoduleConflictSide>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ours: Option<SubmoduleConflictSide>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theirs: Option<SubmoduleConflictSide>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

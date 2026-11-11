@@ -23,23 +23,80 @@ impl GitCliBackend {
         Ok(operation_state_from_git_dir(&git_dir))
     }
 
-    pub(crate) async fn operation_status(
-        &self,
-        path: &Path,
-    ) -> ApiResult<(
-        RepositoryOperationState,
-        Option<OperationProgress>,
-        Option<OperationSource>,
-    )> {
+    pub(crate) async fn operation_status(&self, path: &Path) -> ApiResult<OperationStatus> {
         let git_dir = self.git_dir(path).await?;
         let state = operation_state_from_git_dir(&git_dir);
         let progress = match state {
             RepositoryOperationState::Rebase => operation_progress_from_git_dir(&git_dir),
             _ => None,
         };
-        let source = operation_source_from_git_dir(&git_dir, state);
-        Ok((state, progress, source))
+        Ok(OperationStatus {
+            state,
+            progress,
+            source: operation_source_from_git_dir(&git_dir, state),
+            message: operation_message_from_git_dir(&git_dir, state),
+            autostash: operation_autostash_pending(&git_dir),
+        })
     }
+}
+
+pub(crate) struct OperationStatus {
+    pub(crate) state: RepositoryOperationState,
+    pub(crate) progress: Option<OperationProgress>,
+    pub(crate) source: Option<OperationSource>,
+    pub(crate) message: Option<String>,
+    pub(crate) autostash: bool,
+}
+
+/// Where Git keeps the message it will commit when the operation continues.
+/// A merge-backend rebase reads `rebase-merge/message` back on `--continue`
+/// (verified against real Git: rewriting `MERGE_MSG` there has no effect); the
+/// apply backend keeps a cleaned copy that is only ever read.
+pub(crate) fn operation_message_file(
+    git_dir: &Path,
+    state: RepositoryOperationState,
+) -> Option<PathBuf> {
+    match state {
+        RepositoryOperationState::Merge
+        | RepositoryOperationState::CherryPick
+        | RepositoryOperationState::Revert => Some(git_dir.join("MERGE_MSG")),
+        RepositoryOperationState::Rebase => {
+            let merge = git_dir.join("rebase-merge");
+            if merge.exists() {
+                Some(merge.join("message"))
+            } else {
+                Some(git_dir.join("rebase-apply").join("msg-clean"))
+            }
+        }
+        RepositoryOperationState::Bisect | RepositoryOperationState::Normal => None,
+    }
+}
+
+pub(crate) fn operation_message_from_git_dir(
+    git_dir: &Path,
+    state: RepositoryOperationState,
+) -> Option<String> {
+    let text = fs::read_to_string(operation_message_file(git_dir, state)?).ok()?;
+    clean_operation_message(&text)
+}
+
+/// Drops Git's `#` comment block (the `# Conflicts:` list) and the blank lines
+/// around the message, the same cleanup `git commit` applies on its own.
+pub(crate) fn clean_operation_message(text: &str) -> Option<String> {
+    let kept: Vec<&str> = text
+        .lines()
+        .map(|line| line.strip_suffix('\r').unwrap_or(line))
+        .filter(|line| !line.starts_with('#'))
+        .collect();
+    let message = kept.join("\n");
+    let message = message.trim_matches(|c: char| c.is_whitespace());
+    (!message.is_empty()).then(|| message.to_owned())
+}
+
+pub(crate) fn operation_autostash_pending(git_dir: &Path) -> bool {
+    git_dir.join("MERGE_AUTOSTASH").exists()
+        || git_dir.join("rebase-merge").join("autostash").exists()
+        || git_dir.join("rebase-apply").join("autostash").exists()
 }
 
 pub(crate) fn operation_state_from_git_dir(git_dir: &Path) -> RepositoryOperationState {
@@ -188,5 +245,25 @@ pub(crate) fn ensure_operation(
             ErrorCode::OperationInProgress,
             "Requested Git operation is not currently active",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operation_message_drops_comments_and_blank_edges() {
+        let text = "Merge branch 'feature'\n\n# Conflicts:\n#\tapp.txt\n\n";
+        assert_eq!(
+            clean_operation_message(text).as_deref(),
+            Some("Merge branch 'feature'")
+        );
+        let revert = "Revert \"x\"\r\n\r\nThis reverts commit abc.\r\n# Conflicts:\r\n";
+        assert_eq!(
+            clean_operation_message(revert).as_deref(),
+            Some("Revert \"x\"\n\nThis reverts commit abc.")
+        );
+        assert_eq!(clean_operation_message("# only\n\n"), None);
     }
 }

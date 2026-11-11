@@ -18,13 +18,13 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     conflict::{
-        conflict_expected_state, entry_at_stage, merge_tree_preflight_unavailable,
+        GITLINK_MODE, conflict_expected_state, entry_at_stage, merge_tree_preflight_unavailable,
         parse_merge_tree_paths, summarize_paths, supports_merge_tree_preflight,
     },
     credentials::{GitCredentialSource, HostCredential},
     limits::*,
     line_patch::{PatchDirection, build_line_patch},
-    operation::ensure_operation,
+    operation::{ensure_operation, operation_message_file, operation_state_from_git_dir},
     parse::{
         DETAIL_FORMAT, LOG_FORMAT, ParsedStatus, REF_FORMAT, STASH_GRAPH_FORMAT, StashCommit,
         StashGraph, parse_changed_files, parse_commit_details, parse_file_diff, parse_git_version,
@@ -1657,8 +1657,8 @@ impl GitBackend for GitCliBackend {
             .stdout_lossy()
             .trim()
             == "true";
-        let (operation_state, operation_progress, raw_operation_source) =
-            self.operation_status(path).await?;
+        let operation = self.operation_status(path).await?;
+        let operation_state = operation.state;
         let name_side = |value: String| {
             let branch = local_branches
                 .iter()
@@ -1669,7 +1669,7 @@ impl GitBackend for GitCliBackend {
                 None => short_operation_oid(&value),
             }
         };
-        let operation_source = raw_operation_source.map(|source| OperationSource {
+        let operation_source = operation.source.map(|source| OperationSource {
             incoming: name_side(source.incoming),
             onto: source.onto.map(name_side),
             incoming_oid: source.incoming_oid,
@@ -1679,8 +1679,10 @@ impl GitBackend for GitCliBackend {
             generation,
             head: parsed_status.head,
             operation_state,
-            operation_progress,
+            operation_progress: operation.progress,
             operation_source,
+            operation_message: operation.message,
+            operation_autostash: operation.autostash,
             status: parsed_status.status,
             local_branches,
             remote_branches,
@@ -2140,6 +2142,22 @@ impl GitBackend for GitCliBackend {
         })
     }
 
+    async fn conflict_resolution_warnings(
+        &self,
+        path: &Path,
+        paths: &[String],
+    ) -> ApiResult<Vec<ConflictResolutionWarning>> {
+        self.resolution_warnings(path, paths).await
+    }
+
+    async fn submodule_conflict_details(
+        &self,
+        path: &Path,
+        conflict_path: &str,
+    ) -> ApiResult<SubmoduleConflictDetails> {
+        self.describe_submodule_conflict(path, conflict_path).await
+    }
+
     async fn conflict_details(
         &self,
         path: &Path,
@@ -2419,13 +2437,35 @@ impl GitBackend for GitCliBackend {
             .ensure_expected_conflict(path, conflict_path, expected_state)
             .await?;
 
+        if resolution == ConflictResolution::Base {
+            let Some(base) = entry_at_stage(&entries, 1) else {
+                return Err(ApiError::new(
+                    ErrorCode::UnsupportedOperation,
+                    "This conflict has no base version",
+                )
+                .with_details(format!(
+                    "{conflict_path}: both sides added the path, so there is no common ancestor to keep."
+                )));
+            };
+            return self.take_index_version(path, conflict_path, base).await;
+        }
+
         let checkout_side = match resolution {
             ConflictResolution::Ours => Some(("--ours", 2, "ours")),
             ConflictResolution::Theirs => Some(("--theirs", 3, "theirs")),
-            ConflictResolution::MarkResolved | ConflictResolution::Delete => None,
+            ConflictResolution::Base
+            | ConflictResolution::MarkResolved
+            | ConflictResolution::Delete => None,
         };
 
         if let Some((checkout_flag, stage, side_name)) = checkout_side {
+            // A submodule pointer has no file content to check out; staging
+            // the recorded commit is the whole resolution.
+            if let Some(entry) =
+                entry_at_stage(&entries, stage).filter(|entry| entry.mode == GITLINK_MODE)
+            {
+                return self.take_index_version(path, conflict_path, entry).await;
+            }
             if entry_at_stage(&entries, stage).is_none() {
                 return Err(ApiError::new(
                     ErrorCode::UnsupportedOperation,
@@ -2533,10 +2573,19 @@ impl GitBackend for GitCliBackend {
             .with_details(summarize_paths(&unconflicted)));
         }
 
+        if resolution == ConflictResolution::Base {
+            return Err(ApiError::new(
+                ErrorCode::UnsupportedOperation,
+                "Keeping the base version is chosen one file at a time",
+            ));
+        }
+
         let checkout_side = match resolution {
             ConflictResolution::Ours => Some(("--ours", 2u8, "ours")),
             ConflictResolution::Theirs => Some(("--theirs", 3u8, "theirs")),
-            ConflictResolution::MarkResolved | ConflictResolution::Delete => None,
+            ConflictResolution::Base
+            | ConflictResolution::MarkResolved
+            | ConflictResolution::Delete => None,
         };
 
         if let Some((checkout_flag, stage, side_name)) = checkout_side {
@@ -2856,9 +2905,40 @@ impl GitBackend for GitCliBackend {
     async fn merge_branch(&self, path: &Path, branch: &str) -> ApiResult<MutationResult> {
         self.validate_branch_name(branch).await?;
         let oid = self.resolve_commit(path, branch).await?;
+        // Naming the branch, rather than the commit it resolved to, is what
+        // lets Git write "Merge branch 'x'" into the commit and into MERGE_MSG
+        // instead of "Merge commit '<oid>'". Only a name that is a branch or a
+        // remote-tracking branch and still resolves to the same commit is
+        // passed on; anything else is merged by its object id as before.
+        let mut target = oid;
+        for candidate in [
+            format!("refs/heads/{branch}"),
+            format!("refs/remotes/{branch}"),
+        ] {
+            let output = self
+                .read_allow_failure(
+                    Some(path),
+                    vec![
+                        "rev-parse".into(),
+                        "--verify".into(),
+                        "--quiet".into(),
+                        format!("{candidate}^{{commit}}").into(),
+                    ],
+                )
+                .await?;
+            // `branch` itself already resolved to this commit, so passing the
+            // name Git was given produces the same merge with its own wording.
+            if output.success()
+                && output.stdout_lossy().trim() == target
+                && !branch.starts_with('-')
+            {
+                target = branch.to_owned();
+                break;
+            }
+        }
         self.mutate(
             path,
-            vec!["merge".into(), "--no-edit".into(), oid.into()],
+            vec!["merge".into(), "--no-edit".into(), target.into()],
             None,
             CancellationToken::new(),
             false,
@@ -3101,11 +3181,15 @@ impl GitBackend for GitCliBackend {
         path: &Path,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult> {
         let oid = self.resolve_commit(path, oid).await?;
         let parents = self.commit_parent_oids(path, &oid).await?;
         validate_mainline_parent(parents.len(), mainline_parent)?;
         let mut args = os_args(&["cherry-pick"]);
+        if !commit {
+            args.push("--no-commit".into());
+        }
         if let Some(parent) = mainline_parent {
             args.extend(["-m".into(), parent.to_string().into()]);
         }
@@ -3119,11 +3203,15 @@ impl GitBackend for GitCliBackend {
         path: &Path,
         oid: &str,
         mainline_parent: Option<u32>,
+        commit: bool,
     ) -> ApiResult<MutationResult> {
         let oid = self.resolve_commit(path, oid).await?;
         let parents = self.commit_parent_oids(path, &oid).await?;
         validate_mainline_parent(parents.len(), mainline_parent)?;
         let mut args = os_args(&["revert", "--no-edit"]);
+        if !commit {
+            args.push("--no-commit".into());
+        }
         if let Some(parent) = mainline_parent {
             args.extend(["-m".into(), parent.to_string().into()]);
         }
@@ -3265,8 +3353,24 @@ impl GitBackend for GitCliBackend {
         &self,
         path: &Path,
         operation: ContinueOperation,
+        message: Option<&str>,
     ) -> ApiResult<MutationResult> {
-        ensure_operation(self.operation_state(path).await?, operation)?;
+        let git_dir = self.git_dir(path).await?;
+        let state = operation_state_from_git_dir(&git_dir);
+        ensure_operation(state, operation)?;
+        if let Some(message) = message.map(str::trim).filter(|message| !message.is_empty()) {
+            validate_message(message)?;
+            // The apply backend rebuilds its message from the patch, so only
+            // files Git reads back on `--continue` are written.
+            let file =
+                operation_message_file(&git_dir, state).filter(|file| !file.ends_with("msg-clean"));
+            if let Some(file) = file {
+                fs::write(&file, format!("{message}\n")).map_err(|error| {
+                    ApiError::new(ErrorCode::Io, "Commit message could not be written")
+                        .with_details(error.to_string())
+                })?;
+            }
+        }
         let args = match operation {
             ContinueOperation::Merge => os_args(&["merge", "--continue"]),
             ContinueOperation::Rebase => os_args(&["rebase", "--continue"]),
