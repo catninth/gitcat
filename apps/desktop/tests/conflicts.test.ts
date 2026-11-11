@@ -16,6 +16,7 @@ import {
   operationButtons,
   type ConflictContext,
 } from "../src/lib/conflicts";
+import { baseSlices, parseConflictMarkers } from "../src/lib/mergeConflicts";
 
 const MERGE_OID = "ffcec0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PICK_OID = "abcdef1234567890abcdef1234567890abcdef12";
@@ -130,4 +131,10 @@ test("conflict toasts are titled by the command that stopped", () => {
   assert.deepEqual(conflictToasts("pull_autostash").map((toast) => toast.title), ["Error Applying Stash", "Pull Failed"]);
   assert.equal(conflictToasts(continueConflictMutation("rebase"))[0].title, "Rebase Skip/Continue Failed");
   assert.equal(conflictToasts(continueConflictMutation("cherry_pick"))[0].title, "Cherry pick Failed");
+});
+
+test("an add/add conflict has an empty base rather than an error", () => {
+  const parsed = parseConflictMarkers("<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> theirs\n");
+  assert.equal(parsed.conflicts.length, 1);
+  assert.equal(baseSlices(parsed.segments, undefined).size, 0);
 });
