@@ -176,19 +176,42 @@ async fn merge_pull_accepts_an_untracked_file_identical_to_the_incoming_one() {
 }
 
 #[tokio::test]
-async fn a_differing_untracked_file_is_never_overwritten_and_stays_stashed() {
+async fn a_differing_untracked_file_becomes_an_add_add_conflict_like_gitkraken() {
     let fixture = diverged("remote icons\n");
     let (result, _) = pull(&fixture.local, PullMode::Rebase).await;
     let result = result.expect("the pull itself succeeds");
     assert!(result.needs_user_action);
     let notice = result.notice.expect("a notice names the path");
     assert!(notice.contains("plugins/icons.jar"), "{notice}");
-
     assert_eq!(
-        read(&fixture.local.join("plugins/icons.jar")),
-        "remote icons\n"
+        result
+            .conflicts
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect::<Vec<_>>(),
+        ["plugins/icons.jar"]
     );
-    assert_eq!(stash_count(&fixture.local), 1, "the user's version is kept");
+
+    // Tracked edits come back; only the colliding file needs a decision.
+    assert_eq!(
+        read(&fixture.local.join("tracked.txt")),
+        "base\nlocal\ndirty\n"
+    );
+    let status = git(&fixture.local, &["status", "--porcelain"]);
+    assert!(status.contains("AA plugins/icons.jar"), "{status}");
+    let stages = git(
+        &fixture.local,
+        &["ls-files", "--stage", "plugins/icons.jar"],
+    );
+    assert!(stages.contains(" 2\tplugins/icons.jar"), "{stages}");
+    assert!(stages.contains(" 3\tplugins/icons.jar"), "{stages}");
+    let merged = read(&fixture.local.join("plugins/icons.jar"));
+    assert!(
+        merged.contains("remote icons") && merged.contains("\nicons\n"),
+        "{merged}"
+    );
+
+    assert_eq!(stash_count(&fixture.local), 1, "the stash stays as a copy");
     assert_eq!(
         git(&fixture.local, &["show", "stash@{0}^3:plugins/icons.jar"]),
         "icons"

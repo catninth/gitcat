@@ -16,7 +16,10 @@
 //!    and the stash is dropped once applied.
 //!
 //! An untracked file whose path now exists with *different* content is never
-//! overwritten: the stash stays, and the result says which paths need a look.
+//! silently overwritten. Like GitKraken, the stash is applied anyway and the
+//! path becomes a "both added" conflict -- stage 2 the pulled version, stage 3
+//! the stashed one -- so it is resolved in the ordinary conflict view. The
+//! stash stays in the list until the user drops it.
 //! When the pull stops in a merge or rebase, the stash is handed to Git the way
 //! `--autostash` itself would have stored it, so finishing or aborting that
 //! operation brings the changes back without GitCat having to be running.
@@ -75,15 +78,35 @@ impl GitCliBackend {
         }
 
         progress(PullPhase::Restoring);
-        let notice = self
+        let restored = self
             .restore_pull_stash(path, &stash)
             .await
             .unwrap_or_else(|error| {
-                Some(format!(
+                Restore::Kept(format!(
                     "Your local changes are kept in the stash (\"{AUTOSTASH_MESSAGE}\"): {}",
                     error.message
                 ))
             });
+        let notice = match restored {
+            Restore::Clean => None,
+            Restore::Kept(notice) => Some(notice),
+            Restore::Conflicted(notice) => {
+                // The conflicts were made after the pull's own result was
+                // read, so it is read again for the conflict list.
+                let result = match result {
+                    Ok(result) => self.mutation_result(path, result.before_oid).await,
+                    Err(error) => Err(error),
+                };
+                return match result {
+                    Ok(mut result) => {
+                        result.needs_user_action = true;
+                        result.notice = Some(notice);
+                        Ok(result)
+                    }
+                    Err(error) => Err(append_notice(error, notice)),
+                };
+            }
+        };
         match (result, notice) {
             (result, None) => result,
             (Ok(mut result), Some(notice)) => {
@@ -93,13 +116,7 @@ impl GitCliBackend {
             }
             // The pull's own failure is the one the user asked about; a stash
             // that could not come back is added to it rather than hiding it.
-            (Err(error), Some(notice)) => {
-                let details = match error.details.clone() {
-                    Some(details) => format!("{details}\n\n{notice}"),
-                    None => notice,
-                };
-                Err(error.with_details(details))
-            }
+            (Err(error), Some(notice)) => Err(append_notice(error, notice)),
         }
     }
 
@@ -120,6 +137,31 @@ impl GitCliBackend {
         self.runner
             .run(Some(path), &args, None, CancellationToken::new(), options)
             .await
+    }
+
+    async fn write_checked_stdin(
+        &self,
+        path: &Path,
+        args: Vec<OsString>,
+        stdin: &[u8],
+    ) -> ApiResult<()> {
+        let mut options = GitRunOptions::mutation(READ_OUTPUT_CAP);
+        options.allow_failure = true;
+        let output = self
+            .runner
+            .run(
+                Some(path),
+                &args,
+                Some(stdin),
+                CancellationToken::new(),
+                options,
+            )
+            .await?;
+        if output.success() {
+            Ok(())
+        } else {
+            Err(self.runner.failure_error(&output))
+        }
     }
 
     async fn write_checked(&self, path: &Path, args: Vec<OsString>) -> ApiResult<()> {
@@ -255,64 +297,122 @@ impl GitCliBackend {
         stored
     }
 
-    /// Puts the stash back. `Ok(Some(notice))` when it had to stay in the
-    /// stash list, saying why.
-    async fn restore_pull_stash(&self, path: &Path, stash: &str) -> ApiResult<Option<String>> {
+    /// Puts the stash back and says how that went.
+    async fn restore_pull_stash(&self, path: &Path, stash: &str) -> ApiResult<Restore> {
         let untracked = self.stashed_untracked(path, stash).await?;
         let mut identical = Vec::new();
         let mut differing = Vec::new();
-        for (blob, relative) in untracked {
-            let file = path.join(&relative);
-            if std::fs::symlink_metadata(&file).is_err() {
+        for entry in untracked {
+            if std::fs::symlink_metadata(path.join(&entry.path)).is_err() {
                 continue;
             }
-            if self.worktree_blob(path, &relative).await.as_deref() == Some(blob.as_str()) {
-                identical.push(relative);
-            } else {
-                differing.push(relative);
+            if self.worktree_blob(path, &entry.path).await.as_deref() == Some(entry.blob.as_str()) {
+                identical.push(entry);
+                continue;
+            }
+            // A differing file the pull did not bring in has no pulled side
+            // to set against the stashed one; the stash keeps everything.
+            match self.head_blob(path, &entry.path).await {
+                Some(pulled) => differing.push((entry, pulled)),
+                None => {
+                    return Ok(Restore::Kept(kept_notice(
+                        "These untracked files now exist with different content",
+                        &[entry.path],
+                    )));
+                }
             }
         }
-        if !differing.is_empty() {
-            return Ok(Some(kept_notice(
-                "These untracked files now exist with different content",
-                &differing,
-            )));
-        }
 
-        // The pulled file holds exactly what the stash would restore, so it is
-        // removed and put back by the apply as the same bytes.
-        for relative in &identical {
+        // Every colliding path is tracked in HEAD now, so removing it loses
+        // nothing: the apply writes the stashed bytes back, and the pulled
+        // ones stay in the commit.
+        let removed = identical
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .chain(differing.iter().map(|(entry, _)| entry.path.as_str()))
+            .collect::<Vec<_>>();
+        for relative in &removed {
             let _ = std::fs::remove_file(path.join(relative));
         }
         let applied = self
             .write(path, os_args(&["stash", "apply", stash]))
             .await?;
         if !applied.success() {
-            // Nothing that was removed may stay missing: the commit has it.
-            for relative in &identical {
+            for relative in &removed {
                 if std::fs::symlink_metadata(path.join(relative)).is_err() {
                     let mut args = os_args(&["checkout", "HEAD", "--"]);
-                    args.push(relative.into());
+                    args.push((*relative).into());
                     let _ = self.write(path, args).await;
                 }
             }
-            return Ok(Some(format!(
+            return Ok(Restore::Kept(format!(
                 "Your local changes could not be reapplied cleanly and are kept in the stash \
                  (\"{AUTOSTASH_MESSAGE}\").\n{}",
                 applied.stderr_lossy_redacted().trim()
             )));
         }
-        self.drop_pull_stash(path, stash).await?;
-        Ok(None)
+        if differing.is_empty() {
+            self.drop_pull_stash(path, stash).await?;
+            return Ok(Restore::Clean);
+        }
+
+        // Both versions go into the index as an add/add conflict, and the
+        // worktree gets the usual markers drawn from those two stages.
+        let mut index_info = String::new();
+        for (entry, pulled) in &differing {
+            index_info.push_str(&format!("0 {ZERO_OID}\t{}\n", entry.path));
+            index_info.push_str(&format!("{} {pulled} 2\t{}\n", entry.mode, entry.path));
+            index_info.push_str(&format!(
+                "{} {} 3\t{}\n",
+                entry.mode, entry.blob, entry.path
+            ));
+        }
+        self.write_checked_stdin(
+            path,
+            os_args(&["update-index", "--index-info"]),
+            index_info.as_bytes(),
+        )
+        .await?;
+        let mut checkout = os_args(&["checkout", "--conflict=merge", "--"]);
+        checkout.extend(
+            differing
+                .iter()
+                .map(|(entry, _)| OsString::from(&entry.path)),
+        );
+        self.write_checked(path, checkout).await?;
+
+        let paths = differing
+            .into_iter()
+            .map(|(entry, _)| entry.path)
+            .collect::<Vec<_>>();
+        Ok(Restore::Conflicted(kept_notice(
+            "The pulled version and your untracked version conflict in",
+            &paths,
+        )))
+    }
+
+    /// The blob HEAD records at `relative`, if it records one there.
+    async fn head_blob(&self, path: &Path, relative: &str) -> Option<String> {
+        let output = self
+            .read_allow_failure(
+                Some(path),
+                vec![
+                    "rev-parse".into(),
+                    "--verify".into(),
+                    "--quiet".into(),
+                    format!("HEAD:{relative}").into(),
+                ],
+            )
+            .await
+            .ok()?;
+        output
+            .success()
+            .then(|| output.stdout_lossy().trim().to_owned())
     }
 
     /// The untracked part of a stash, as `(blob, path)` pairs. A stash made
     /// without untracked files has no third parent and yields nothing.
-    async fn stashed_untracked(
-        &self,
-        path: &Path,
-        stash: &str,
-    ) -> ApiResult<Vec<(String, String)>> {
+    async fn stashed_untracked(&self, path: &Path, stash: &str) -> ApiResult<Vec<StashedFile>> {
         let output = self
             .read_allow_failure(
                 Some(path),
@@ -335,9 +435,13 @@ impl GitCliBackend {
                 let entry = std::str::from_utf8(entry).ok()?;
                 let (meta, relative) = entry.split_once('\t')?;
                 let mut fields = meta.split_whitespace();
-                let _mode = fields.next()?;
+                let mode = fields.next()?.to_owned();
                 (fields.next()? == "blob").then_some(())?;
-                Some((fields.next()?.to_owned(), relative.to_owned()))
+                Some(StashedFile {
+                    mode,
+                    blob: fields.next()?.to_owned(),
+                    path: relative.to_owned(),
+                })
             })
             .collect())
     }
@@ -374,6 +478,32 @@ impl GitCliBackend {
         )
         .await
     }
+}
+
+const ZERO_OID: &str = "0000000000000000000000000000000000000000";
+
+/// How putting the stash back went.
+enum Restore {
+    /// Everything is back and the stash is dropped.
+    Clean,
+    /// Back, with conflicts to resolve; the stash stays as a copy.
+    Conflicted(String),
+    /// Nothing was applied; the stash holds the changes.
+    Kept(String),
+}
+
+struct StashedFile {
+    mode: String,
+    blob: String,
+    path: String,
+}
+
+fn append_notice(error: ApiError, notice: String) -> ApiError {
+    let details = match error.details.clone() {
+        Some(details) => format!("{details}\n\n{notice}"),
+        None => notice,
+    };
+    error.with_details(details)
 }
 
 fn kept_notice(reason: &str, paths: &[String]) -> String {
