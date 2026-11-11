@@ -345,11 +345,18 @@ impl GitCliBackend {
                     let _ = self.write(path, args).await;
                 }
             }
-            return Ok(Restore::Kept(format!(
+            let notice = format!(
                 "Your local changes could not be reapplied cleanly and are kept in the stash \
                  (\"{AUTOSTASH_MESSAGE}\").\n{}",
                 applied.stderr_lossy_redacted().trim()
-            )));
+            );
+            // A content conflict is a stop with files to resolve, not a stash
+            // that stayed out: the result has to list them, or the caller
+            // reports a notice where GitKraken reports "Error Applying Stash".
+            if !self.conflicted_paths(path).await?.is_empty() {
+                return Ok(Restore::Conflicted(notice));
+            }
+            return Ok(Restore::Kept(notice));
         }
         if differing.is_empty() {
             self.drop_pull_stash(path, stash).await?;

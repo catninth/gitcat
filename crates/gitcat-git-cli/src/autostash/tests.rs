@@ -258,3 +258,37 @@ async fn a_rebase_stopped_on_conflicts_hands_the_stash_to_git() {
     assert_eq!(read(&fixture.local.join("plugins/icons.jar")), "icons\n");
     assert_eq!(stash_count(&fixture.local), 0);
 }
+
+/// A dirty edit on the line the pull rewrites stops the restore on a content
+/// conflict. The result has to list it, so the window reports "Error Applying
+/// Stash" with the file to resolve rather than a bare notice.
+#[tokio::test]
+async fn a_conflicting_dirty_edit_is_reported_as_a_conflict() {
+    let fixture = diverged("icons\n");
+    fs::write(fixture.updater.join("tracked.txt"), "base\nremote\n").unwrap();
+    git(
+        &fixture.updater,
+        &["commit", "--quiet", "-am", "remote edit"],
+    );
+    git(&fixture.updater, &["push", "--quiet", "origin", "main"]);
+    git(
+        &fixture.local,
+        &["reset", "--quiet", "--hard", "origin/main"],
+    );
+    fs::remove_dir_all(fixture.local.join("plugins")).ok();
+    fs::write(fixture.local.join("tracked.txt"), "base\nlocal dirty\n").unwrap();
+
+    let (result, phases) = pull(&fixture.local, PullMode::Merge).await;
+    let result = result.expect("the pull itself succeeds");
+    assert!(matches!(phases.last(), Some(PullPhase::Restoring)));
+    assert!(result.needs_user_action);
+    assert_eq!(
+        result
+            .conflicts
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect::<Vec<_>>(),
+        ["tracked.txt"]
+    );
+    assert_eq!(stash_count(&fixture.local), 1, "the stash stays as a copy");
+}
