@@ -2,7 +2,7 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import type { ToastMessage } from "../components/ToastRegion";
 import { gitcatApi } from "../lib/api";
-import type { PullMode, RepositorySnapshot, StashEntry } from "../lib/types";
+import type { PullMode, PullPhase, RepositorySnapshot, StashEntry } from "../lib/types";
 import { continuableOperation } from "./snapshot";
 import type { PromptState, RunMutation } from "./state";
 
@@ -10,6 +10,8 @@ export interface RepositoryCommandsParams {
     addToast: (toast: Omit<ToastMessage, "id">) => void;
     autoPrune: boolean;
     defaultPullMode: PullMode;
+    /** The step a running pull has reached; `null` once it has finished. */
+    onPullPhase: (phase: PullPhase | null) => void;
     /** Asked instead of pushing when the repository has no remote at all. */
     requestRemote: () => void;
     runMutation: RunMutation;
@@ -24,6 +26,7 @@ export function useRepositoryCommands({
     addToast,
     autoPrune,
     defaultPullMode,
+    onPullPhase,
     requestRemote,
     runMutation,
     selectWip,
@@ -47,8 +50,8 @@ export function useRepositoryCommands({
             mode,
             prune: autoPrune,
             autostash: true,
-        }), { queueKey: "pull" });
-    }, [autoPrune, defaultPullMode, runMutation]);
+        }, onPullPhase).finally(() => onPullPhase(null)), { queueKey: "pull" });
+    }, [autoPrune, defaultPullMode, onPullPhase, runMutation]);
 
     // A branch with no upstream is the one case where the push has to say so,
     // which is what the failure's own recovery action asks for. The options

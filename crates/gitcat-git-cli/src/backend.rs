@@ -2928,6 +2928,17 @@ impl GitBackend for GitCliBackend {
         options: &PullOptions,
         cancellation: CancellationToken,
     ) -> ApiResult<MutationResult> {
+        self.pull_with_progress(path, options, cancellation, Arc::new(|_| {}))
+            .await
+    }
+
+    async fn pull_with_progress(
+        &self,
+        path: &Path,
+        options: &PullOptions,
+        cancellation: CancellationToken,
+        progress: PullProgress,
+    ) -> ApiResult<MutationResult> {
         let remotes = self
             .validate_remote_selection(path, options.remote.as_deref())
             .await?;
@@ -2955,9 +2966,9 @@ impl GitBackend for GitCliBackend {
         if options.prune {
             args.push("--prune".into());
         }
-        if options.autostash {
-            args.push("--autostash".into());
-        }
+        // GitCat stashes around the pull itself, untracked files included;
+        // Git's `--autostash` leaves those behind to block the checkout.
+        args.push("--no-autostash".into());
         if let Some(remote) = &options.remote {
             args.push("--".into());
             args.push(remote.into());
@@ -2969,7 +2980,8 @@ impl GitBackend for GitCliBackend {
         let run = self
             .network_options(&remotes, options.remote.as_deref(), false)
             .await;
-        self.mutate_network(path, args, cancellation, run).await
+        self.pull_with_stash(path, args, options.autostash, cancellation, run, progress)
+            .await
     }
 
     async fn push(

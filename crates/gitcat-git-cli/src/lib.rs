@@ -1,3 +1,4 @@
+mod autostash;
 mod backend;
 mod conflict;
 mod credentials;

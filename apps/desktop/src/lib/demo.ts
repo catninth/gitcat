@@ -5,6 +5,7 @@ import { DEFAULT_KEYBINDS } from "./keybinds";
 import { createDemoSubmodules, demoRepositoryKey, demoSubmodulePath } from "./demoSubmodules";
 import type {
   AppMetadata,
+  PullPhase,
   ApiError,
   BranchInfo,
   ChangedFile,
@@ -1157,8 +1158,22 @@ class DemoGitCatApi implements GitCatApi {
     return this.mutation();
   }
 
-  async pull(repositoryId: RepositoryId, _options: PullOptions): Promise<MutationResult> {
+  async pull(
+    repositoryId: RepositoryId,
+    options: PullOptions,
+    onProgress?: (phase: PullPhase) => void,
+  ): Promise<MutationResult> {
+    if (options.autostash) {
+      onProgress?.({ phase: "stashing" });
+      await delay(60);
+    }
+    onProgress?.({ phase: "pulling" });
     await delay(110);
+    if (options.mode === "rebase") {
+      onProgress?.({ phase: "rebasing", current: 1, total: 1 });
+      await delay(80);
+    }
+    if (options.autostash) onProgress?.({ phase: "restoring" });
     this.ensureRepository(repositoryId);
     this.snapshotValue.status.behind = 0;
     return this.mutation();

@@ -203,6 +203,17 @@ pub trait GitBackend: Send + Sync {
         options: &PullOptions,
         cancellation: CancellationToken,
     ) -> ApiResult<MutationResult>;
+    /// A pull that reports the step it has reached. Backends without phases
+    /// of their own run the plain pull and report nothing.
+    async fn pull_with_progress(
+        &self,
+        path: &Path,
+        options: &PullOptions,
+        cancellation: CancellationToken,
+        _progress: PullProgress,
+    ) -> ApiResult<MutationResult> {
+        self.pull(path, options, cancellation).await
+    }
     async fn push(
         &self,
         path: &Path,

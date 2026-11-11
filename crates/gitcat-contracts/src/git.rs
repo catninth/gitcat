@@ -90,6 +90,22 @@ pub struct RepositoryCapabilities {
     pub worktree: bool,
 }
 
+/// The step a running pull has reached, streamed to the webview while the
+/// command is still working. A pull is several Git commands when GitCat holds
+/// the local changes aside itself, and "Pulling" alone hides which one is slow.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "phase", rename_all = "snake_case")]
+pub enum PullPhase {
+    Stashing,
+    Pulling,
+    Rebasing { current: u32, total: u32 },
+    Restoring,
+}
+
+/// Where a running pull reports its phases. A plain callback keeps the
+/// contracts free of any transport; the desktop shell forwards it to a channel.
+pub type PullProgress = std::sync::Arc<dyn Fn(PullPhase) + Send + Sync>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationProgress {
     pub current: u32,

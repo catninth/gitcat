@@ -281,6 +281,13 @@ export interface RemoteInfo {
   web_url?: string;
 }
 
+/** The step a running pull has reached, streamed while it works. */
+export type PullPhase =
+  | { phase: "stashing" }
+  | { phase: "pulling" }
+  | { phase: "rebasing"; current: number; total: number }
+  | { phase: "restoring" };
+
 export interface OperationProgress {
   current: number;
   total: number;

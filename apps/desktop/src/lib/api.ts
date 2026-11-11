@@ -2,6 +2,7 @@ import { createDemoGitCatApi } from "./demo";
 import { getGitCatRuntime, invokeTauri } from "./platform";
 import type {
   AppMetadata,
+  PullPhase,
   ApiError,
   CloneOptions,
   CommitActionAvailability,
@@ -152,7 +153,11 @@ export interface GitCatCommands {
   mergeBranch(repositoryId: RepositoryId, branch: string): Promise<MutationResult>;
   addRemote(repositoryId: RepositoryId, name: string, url: string): Promise<MutationResult>;
   fetch(repositoryId: RepositoryId, options: FetchOptions): Promise<MutationResult>;
-  pull(repositoryId: RepositoryId, options: PullOptions): Promise<MutationResult>;
+  pull(
+    repositoryId: RepositoryId,
+    options: PullOptions,
+    onProgress?: (phase: PullPhase) => void,
+  ): Promise<MutationResult>;
   push(repositoryId: RepositoryId, options: PushOptions): Promise<MutationResult>;
   checkoutCommit(repositoryId: RepositoryId, oid: string): Promise<MutationResult>;
   createTag(
@@ -342,8 +347,12 @@ export function createTauriGitCatApi(): GitCatApi {
       invokeTauri("remote_add", { repositoryId, name, url }),
     fetch: (repositoryId, options) =>
       invokeTauri("remote_fetch", { repositoryId, options }),
-    pull: (repositoryId, options) =>
-      invokeTauri("remote_pull", { repositoryId, options }),
+    pull: async (repositoryId, options, onProgress) => {
+      const { Channel } = await import("@tauri-apps/api/core");
+      const channel = new Channel<PullPhase>();
+      if (onProgress) channel.onmessage = onProgress;
+      return invokeTauri("remote_pull", { repositoryId, options, onProgress: channel });
+    },
     push: (repositoryId, options) =>
       invokeTauri("remote_push", { repositoryId, options }),
     checkoutCommit: (repositoryId, oid) =>

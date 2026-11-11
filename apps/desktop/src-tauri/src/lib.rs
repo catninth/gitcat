@@ -589,8 +589,13 @@ async fn remote_pull(
     core: State<'_, Arc<CoreApi>>,
     repository_id: RepositoryId,
     options: PullOptions,
+    on_progress: tauri::ipc::Channel<gitcat_contracts::PullPhase>,
 ) -> ApiResult<MutationResult> {
-    core.pull(&repository_id, &options, CancellationToken::new())
+    // A phase the webview can no longer receive is not worth failing the pull.
+    let progress: gitcat_contracts::PullProgress = Arc::new(move |phase| {
+        let _ = on_progress.send(phase);
+    });
+    core.pull_with_progress(&repository_id, &options, CancellationToken::new(), progress)
         .await
 }
 

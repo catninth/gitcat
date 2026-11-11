@@ -572,8 +572,21 @@ impl CoreApi {
         options: &PullOptions,
         cancellation: CancellationToken,
     ) -> ApiResult<MutationResult> {
+        self.pull_with_progress(repository_id, options, cancellation, Arc::new(|_| {}))
+            .await
+    }
+
+    pub async fn pull_with_progress(
+        &self,
+        repository_id: &RepositoryId,
+        options: &PullOptions,
+        cancellation: CancellationToken,
+        progress: PullProgress,
+    ) -> ApiResult<MutationResult> {
         self.mutate(repository_id, |backend, path| async move {
-            backend.pull(&path, options, cancellation).await
+            backend
+                .pull_with_progress(&path, options, cancellation, progress)
+                .await
         })
         .await
     }

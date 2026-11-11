@@ -35,6 +35,7 @@ import type {
     GraphColumnWidths,
     HistoryPage,
     PersistedState,
+    PullPhase,
     PullRequestInfo,
     RepositorySnapshot,
     RepositoryTab,
@@ -77,6 +78,7 @@ import { useWorkspaceBootstrap } from "./app/useWorkspaceBootstrap";
 import { useWorktreeMutations } from "./app/useWorktreeMutations";
 import { workspaceTabs } from "./app/workspace";
 import { wipChangeKind } from "./app/worktree";
+import { PullProgressOverlay } from "./components/PullProgressOverlay";
 
 function App() {
     const [persisted, setPersisted] = useState<PersistedState>(EMPTY_STATE);
@@ -116,6 +118,7 @@ function App() {
     const [centerView, setCenterView] = useState<CenterView>("graph");
     const [stageCollapse, setStageCollapse] = useState<{ target: FolderCollapseTarget; staged: boolean; token: number } | null>(null);
     const [busy, setBusy] = useState(false);
+    const [pullPhase, setPullPhase] = useState<PullPhase | null>(null);
     const [overviewLoading, setOverviewLoading] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [initializing, setInitializing] = useState(true);
@@ -510,6 +513,7 @@ function App() {
         addToast,
         autoPrune: persisted.settings.auto_prune,
         defaultPullMode: persisted.settings.default_pull_mode,
+        onPullPhase: setPullPhase,
         requestRemote,
         runMutation,
         selectWip,
@@ -1163,6 +1167,7 @@ function App() {
                 tabMenu={tabMenu}
                 toasts={toasts}
             />
+            <PullProgressOverlay phase={pullPhase} />
             {gitHubAccessOpen ? <GitHubAccessDialog onClose={() => setGitHubAccessOpen(false)} /> : null}
         </AppShell>
     );
