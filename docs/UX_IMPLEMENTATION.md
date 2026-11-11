@@ -77,6 +77,42 @@ Conflict mutations carry an expected snapshot containing all index-stage OID/mod
 
 LF and CRLF results keep their original line endings when `preserve` is selected. A changed mixed-EOL result cannot be silently normalized: the UI requires explicit LF or CRLF selection.
 
+### Working tree panel while files are conflicted
+
+Modelled on GitKraken 12.6.2 (observations in `scripts/conflict-lab/FINDINGS.md`, plan in `docs/conflict-ux-plan.md`):
+
+- While any path is conflicted -- in any operation, including a stash apply or a pull's autostash that has no state file -- the panel shows only **Conflicted Files (n)** and **Resolved Files (n)** (the staged list, same menu). Unstaged and untracked files are hidden and return the moment the last conflict is resolved. With no conflicts left but an operation still pending (`merge --no-commit`), the panel is the normal Unstaged/Staged view with the operation's buttons at the bottom.
+- Header: "Rebase conflicts detected" for a rebase, "Merge conflicts detected" for everything else. A subtitle appears only for a merge ("Merging `feature` into `main`") and a rebase ("Rebasing `feature` onto `main`", the onto as a short hash when no ref names it). There is no stash count badge.
+- The working-copy row says "A file conflict was found when attempting to merge into `main`" or "N file conflicts were found …"; during a rebase the target is `HEAD`. The count includes paths deleted on both sides, which GitKraken hides.
+- A pending autostash (`MERGE_AUTOSTASH`, `rebase-*/autostash`, `RepositorySnapshot.operation_autostash`) gets one line under the header saying the local changes come back when the operation finishes or is aborted. GitKraken shows nothing.
+- The commit message field stays visible during an operation and is filled once from `RepositorySnapshot.operation_message` (`MERGE_MSG`, or the replayed commit's message for a rebase, `#` lines removed) when the draft is empty. A draft the user typed is never overwritten; a prefilled message nobody touched is replaced at the next rebase step and cleared when the operation ends. A stash's message is never prefilled.
+- Buttons: merge "Commit and Merge" (disabled while conflicted; "No Changes to Merge" while conflicted with nothing resolved) + "Abort Merge"; rebase "Skip Commit" while conflicted, then "Continue Rebase", + "Abort Rebase"; cherry-pick/revert "Continue …" + "Abort …" (GitKraken has no Abort there; GitCat keeps it); a stash apply stopped on conflicts gets the ordinary commit button and no Abort. Rebase progress is a line above the message ("Rebasing commit n out of m"), never part of it. Ctrl+Enter only ever continues; it never skips.
+- Continue sends the edited message: merge, cherry-pick and revert rewrite `MERGE_MSG`; a merge-backend rebase rewrites `rebase-merge/message` (verified against real Git: `MERGE_MSG` is ignored on `rebase --continue`). The apply backend rebuilds its message from the patch, so there the field is effectively read-only.
+- **Decision (Abort confirmation):** GitKraken aborts without asking. GitCat asks only when Resolved Files is non-empty, because only then does the abort throw away work.
+- Toasts for a command that stops on conflicts use GitKraken's titles with "There are merge conflicts that need to be resolved": "Merge Failed", "Rebase Failed", "Rebase Skip/Continue Failed", "Cherry pick Failed", "Revert Failed", "Error Applying Stash"; a pull that stopped while restoring its autostash shows "Error Applying Stash" and "Pull Failed – Has conflicts". A completed merge says "Merged – `feature` into `main`". `MergeBranch` now passes the branch name (when it still resolves to the same commit) so Git writes "Merge branch 'feature'" rather than "Merge commit '<oid>'".
+
+### Resolving one file
+
+- Side labels (menus, bulk actions, decision bar): merge -- current branch / incoming branch; rebase -- onto / replayed branch; cherry-pick and revert -- current branch / short commit id; stash apply and pull autostash -- short HEAD id / "Applied patch or stash". GitKraken labels a pull's autostash by the rebase direction ("origin/main" / "main"); GitCat does not.
+- Right-click on a conflicted file: Take current (…) · Take incoming (…) · Mark resolved · Open conflict… · Show in Explorer · Copy file path · Delete file. A side Git recorded nothing for is disabled. GitCat has no file history or external-editor command yet, so those GitKraken entries are absent. Taking one file's side from a menu is not confirmed; a folder or "for all" still is.
+- `StatusEntry.conflict_kind` carries the porcelain `u XY` shape. A click on a modify/delete (UD/DU), a one-sided add from a rename/rename or file/directory conflict (AU/UA), or a both-deleted path (DD) opens a decision bar above the graph instead of the editor: "X has been modified on A, but deleted on B." Keep Modified Version · Delete The File · Keep Base Version · Cancel; "GitCat was unable to determine whether to keep X …" Keep New Version · Delete The File · Cancel; "X was deleted on both sides." Delete The File · Keep Base Version · Cancel. A `path~HEAD` copy next to a directory says it is Git's file/folder rename.
+- `ConflictResolution::Base` stages index stage 1 (`update-index --cacheinfo`, then checkout for files) and fails when there is no base. The same stage-0 write takes a side of a submodule pointer, which `checkout --ours/--theirs` cannot.
+- Take incoming on a binary conflict works (regression-tested); in GitKraken it silently does nothing.
+- A submodule pointer conflict opens its own view: Current (what the submodule has checked out) / Ours / Theirs cards described from the submodule's own repository, with Use current (stages the checked-out commit), Use incoming (stages stage 3), and Open submodule. GitKraken has no "use incoming".
+- Mark resolved and Mark All Resolved first ask the backend (`conflict_resolution_warnings`) whether any path still holds a complete `<<<<<<<`/`=======`/`>>>>>>>` block (text files within the 1 MiB editor limit) or is a `path~<side>` helper copy beside a directory. Only then is the user asked to confirm, with the paths listed. GitKraken commits both silently.
+
+### Merge editor
+
+- Pane titles "Commit `8c69e9a` on `main`" (A = stage 2) and "Commit `ffcec0a` on `feature`" (B = stage 3); during a rebase A is HEAD on the onto and B the replayed commit read from the conflict marker label; a stash apply's B is "Applied patch or stash". The header reads "`path` (n conflicts)", and the editor opens scrolled to the first conflict.
+- The Output still starts from the working copy, so a file fixed by hand (lab case C07) is not reset to the base as GitKraken does.
+- An add/add conflict has an empty base, not an error.
+- **Decision (large files):** GitKraken opens a 2 MB file. GitCat keeps the 1 MiB editor cap, because the panes render every line without virtualisation; a larger file shows a message that points to Take current / Take incoming in the file's menu.
+
+### Cherry-pick and revert
+
+- Starting either asks first, in a bar above the graph: "Do you want to immediately commit the cherry picked changes?" (or "…the reverted changes?") Yes · No · Cancel. No runs with `--no-commit` and leaves the change staged.
+- Not implemented (plan phase F): "Cherry-picking commit n out of m" -- Git's sequencer keeps only the remaining `todo` for a cherry-pick series, not the finished picks, so n is not derivable. A conflict inside a submodule is not surfaced in the parent repository.
+
 ## Build identity
 
 The footer always displays `GitCat v<package-version> · <build-commit>`. Native builds inject Git's unambiguous abbreviated source commit (at least seven hexadecimal characters) at compile time and rerun the build script when HEAD/ref metadata changes. The build script requires a `.git` directory or worktree pointer at GitCat's own repository root, so a source archive or non-Git build reports `unknown` instead of inheriting an unrelated parent repository; the browser fixture reports `browser-demo` rather than pretending to be a native build.
