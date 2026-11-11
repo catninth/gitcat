@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
 import { getCommitGraphWidth, getCommitLaneXCss, getCommitRowBranchOrigin, getWipLane, getWipLaneColorVariable, } from "./components/CommitGraph";
 import { emptyChangeCounts, fileChangeCounts, sumChangeCounts } from "./components/file-tree";
 import type { FolderCollapseTarget } from "./components/file-tree";
+import { CommitNowBar } from "./components/CommitNowBar";
 import { OperationBanner } from "./components/OperationBanner";
 import { AddRemoteDialog, type AddRemoteRequest } from "./components/remotes";
 import { REF_RAIL_WIDTH, RefPanel, type BranchContextMenuRequest } from "./components/ref-sidebar";
@@ -60,7 +61,8 @@ import { useCommitSearch } from "./app/useCommitSearch";
 import { useCommitSelection } from "./app/useCommitSelection";
 import { useConflictActions } from "./app/useConflictActions";
 import { useConflictPreflight } from "./app/useConflictPreflight";
-import { useContextMenuActions } from "./app/useContextMenuActions";
+import { useContextMenuActions, type CommitNowQuestion } from "./app/useContextMenuActions";
+import { conflictToasts } from "./lib/conflicts";
 import { useDialogActions } from "./app/useDialogActions";
 import { useDiffLineActions } from "./app/useDiffLineActions";
 import { useDiffPane } from "./app/useDiffPane";
@@ -145,6 +147,7 @@ function App() {
     } = usePanelLayout();
     const appUpdate = useAppUpdate();
     const [conflictEditor, setConflictEditor] = useState<ConflictFileDetails | null>(null);
+    const [commitNowQuestion, setCommitNowQuestion] = useState<CommitNowQuestion | null>(null);
     const [commitDrafts, setCommitDrafts] = useState<Record<string, CommitDraft>>({});
     const [overviewRepositoryId, setOverviewRepositoryId] = useState<string | null>(null);
     const activeRepositoryIdRef = useRef<string | null>(null);
@@ -625,6 +628,23 @@ function App() {
         wipSelected,
     });
 
+    const answerCommitNow = useCallback((commit: boolean) => {
+        const question = commitNowQuestion;
+        setCommitNowQuestion(null);
+        if (!question) return;
+        const { kind, oid, mainline } = question;
+        const title = kind === "cherry_pick"
+            ? (commit ? "Commit cherry-picked" : "Cherry-picked changes staged")
+            : (commit ? "Commit reverted" : "Reverted changes staged");
+        void runMutation(
+            title,
+            (repository) => kind === "cherry_pick"
+                ? gitcatApi.cherryPick(repository.repository_id, oid, mainline, commit)
+                : gitcatApi.revertCommit(repository.repository_id, oid, mainline, commit),
+            { conflictToasts: conflictToasts(kind) },
+        );
+    }, [commitNowQuestion, runMutation]);
+
     const {
         branchContextActions,
         checkoutRemoteBranch,
@@ -635,6 +655,7 @@ function App() {
         tabContextActions,
     } = useContextMenuActions({
         activateRepositoryTab,
+        askCommitNow: setCommitNowQuestion,
         activeRepository,
         activeRepositoryIdRef,
         addToast,
@@ -920,6 +941,15 @@ function App() {
                             settingsKeybind={persisted.settings.keybinds.open_settings}
                         />
                     )}
+
+                    {commitNowQuestion && commitNowQuestion.repositoryId === activeRepository?.repository_id ? (
+                        <CommitNowBar
+                            busy={busy}
+                            kind={commitNowQuestion.kind}
+                            onAnswer={answerCommitNow}
+                            onCancel={() => setCommitNowQuestion(null)}
+                        />
+                    ) : null}
 
                     {/* Conflicts are stated on the working-copy row instead,
                         so the banner is left to the operations that are only

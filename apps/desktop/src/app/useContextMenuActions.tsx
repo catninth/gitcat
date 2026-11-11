@@ -107,8 +107,17 @@ function checkedOutDeleteToast(name: string): Omit<ToastMessage, "id"> {
     };
 }
 
+/** A cherry-pick or revert waiting for "commit right away?" to be answered. */
+export interface CommitNowQuestion {
+    kind: "cherry_pick" | "revert";
+    oid: string;
+    mainline: number | null;
+    repositoryId: string;
+}
+
 export interface ContextMenuActionsParams {
     activateRepositoryTab: (nextId: string | undefined) => void;
+    askCommitNow: (question: CommitNowQuestion) => void;
     activeRepository: RuntimeRepository | undefined;
     activeRepositoryIdRef: RefObject<string | null>;
     addToast: (toast: Omit<ToastMessage, "id">) => void;
@@ -146,6 +155,7 @@ export interface ContextMenuActions {
 
 export function useContextMenuActions({
     activateRepositoryTab,
+    askCommitNow,
     activeRepository,
     activeRepositoryIdRef,
     addToast,
@@ -491,13 +501,13 @@ export function useContextMenuActions({
             case "cherry_pick": {
                 const mainline = commit.parent_oids.length > 1 ? Number(window.prompt("Mainline parent number", "1")) : null;
                 if (commit.parent_oids.length > 1 && (!mainline || mainline < 1)) break;
-                void runMutation("Commit cherry-picked", (repository) => gitcatApi.cherryPick(repository.repository_id, commit.oid, mainline));
+                if (activeRepository) askCommitNow({ kind: "cherry_pick", oid: commit.oid, mainline, repositoryId: activeRepository.repository_id });
                 break;
             }
             case "revert": {
                 const mainline = commit.parent_oids.length > 1 ? Number(window.prompt("Mainline parent number", "1")) : null;
                 if (commit.parent_oids.length > 1 && (!mainline || mainline < 1)) break;
-                void runMutation("Commit reverted", (repository) => gitcatApi.revertCommit(repository.repository_id, commit.oid, mainline));
+                if (activeRepository) askCommitNow({ kind: "revert", oid: commit.oid, mainline, repositoryId: activeRepository.repository_id });
                 break;
             }
             case "reset:soft":
