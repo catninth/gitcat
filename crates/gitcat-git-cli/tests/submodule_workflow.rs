@@ -10,6 +10,15 @@ use gitcat_core::CoreApi;
 use gitcat_git_cli::GitCliBackend;
 use tempfile::{TempDir, tempdir};
 
+/// Submodule clones carry no `user.*` config of their own, and a CI runner has
+/// no global identity, so every fixture command brings one along.
+const IDENTITY: [(&str, &str); 4] = [
+    ("GIT_AUTHOR_NAME", "Submodule Tests"),
+    ("GIT_AUTHOR_EMAIL", "tests@example.invalid"),
+    ("GIT_COMMITTER_NAME", "Submodule Tests"),
+    ("GIT_COMMITTER_EMAIL", "tests@example.invalid"),
+];
+
 fn git(root: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
         .arg("-C")
@@ -17,6 +26,7 @@ fn git(root: &Path, args: &[&str]) -> String {
         .args(args)
         .env("GIT_ALLOW_PROTOCOL", "file:git:http:https:ssh")
         .env("GIT_TERMINAL_PROMPT", "0")
+        .envs(IDENTITY)
         .output()
         .expect("run git fixture command");
     assert!(
@@ -683,6 +693,7 @@ async fn submodule_pointer_conflict_is_described_and_resolved_by_side() {
         .arg("-C")
         .arg(&fixture.root)
         .args(["merge", "theirs"])
+        .envs(IDENTITY)
         .output()
         .expect("run merge");
     assert!(!merge.status.success(), "the pointers conflict");
