@@ -195,6 +195,16 @@ pub trait GitBackend: Send + Sync {
         force: bool,
         confirmed: bool,
     ) -> ApiResult<MutationResult>;
+    /// Deletes `branch` on `remote` (`git push --delete`). The remote-tracking
+    /// ref goes with it. It always contacts the remote, so it is confirmed
+    /// before it gets here.
+    async fn delete_remote_branch(
+        &self,
+        path: &Path,
+        remote: &str,
+        branch: &str,
+        confirmed: bool,
+    ) -> ApiResult<MutationResult>;
     async fn set_upstream(
         &self,
         path: &Path,

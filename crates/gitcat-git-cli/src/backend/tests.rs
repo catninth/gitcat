@@ -4239,3 +4239,64 @@ async fn resolution_warnings_name_leftover_markers_and_helper_copies() {
     ));
     assert!(!crate::conflict::has_conflict_markers("=======\nheading\n"));
 }
+
+#[tokio::test]
+async fn delete_remote_branch_removes_it_on_the_remote_and_locally() {
+    let (directory, backend, _) = committed_repository().await;
+    let bare = tempdir().expect("bare remote");
+    git(bare.path(), &["init", "--bare", "--quiet"]);
+    let bare_path = bare.path().to_string_lossy().into_owned();
+    git(directory.path(), &["remote", "add", "origin", &bare_path]);
+    git(
+        directory.path(),
+        &["push", "--quiet", "-u", "origin", "main"],
+    );
+    git(directory.path(), &["branch", "feature/gone"]);
+    git(
+        directory.path(),
+        &["push", "--quiet", "origin", "feature/gone"],
+    );
+    // A tag of the same name must survive: only the branch is deleted.
+    git(directory.path(), &["tag", "feature/gone"]);
+    git(
+        directory.path(),
+        &["push", "--quiet", "origin", "refs/tags/feature/gone"],
+    );
+
+    let refused = backend
+        .delete_remote_branch(directory.path(), "origin", "feature/gone", false)
+        .await
+        .expect_err("unconfirmed delete refused");
+    assert_eq!(refused.code, ErrorCode::ProtectedOperation);
+
+    backend
+        .delete_remote_branch(directory.path(), "origin", "feature/gone", true)
+        .await
+        .expect("delete remote branch");
+
+    let remote_heads = git_stdout(bare.path(), &["for-each-ref", "--format=%(refname)"]);
+    assert!(
+        !remote_heads.contains("refs/heads/feature/gone"),
+        "{remote_heads}"
+    );
+    assert!(
+        remote_heads.contains("refs/tags/feature/gone"),
+        "{remote_heads}"
+    );
+    let tracking = git_stdout(
+        directory.path(),
+        &["for-each-ref", "--format=%(refname)", "refs/remotes/origin"],
+    );
+    assert!(!tracking.contains("feature/gone"), "{tracking}");
+    // The local branch is not touched.
+    git(
+        directory.path(),
+        &["rev-parse", "--verify", "refs/heads/feature/gone"],
+    );
+
+    let unknown = backend
+        .delete_remote_branch(directory.path(), "nowhere", "main", true)
+        .await
+        .expect_err("unknown remote refused");
+    assert_ne!(unknown.code, ErrorCode::ProtectedOperation);
+}

@@ -23,6 +23,8 @@ export type PromptState =
 
 export type ConfirmState =
     | { kind: "delete_branch"; name: string; force: boolean }
+    /** Deletes `branch` on `remote`: a push, so it changes the remote for everyone. */
+    | { kind: "delete_remote_branch"; remote: string; branch: string }
     | { kind: "delete_stash"; oid: string; selector: string; message: string }
     /**
      * A push that overwrites the remote. `ignoreRemote` is the second step:

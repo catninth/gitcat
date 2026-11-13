@@ -541,6 +541,27 @@ impl CoreApi {
         .await
     }
 
+    pub async fn delete_remote_branch(
+        &self,
+        repository_id: &RepositoryId,
+        remote: &str,
+        branch: &str,
+        confirmed: bool,
+    ) -> ApiResult<MutationResult> {
+        if !confirmed {
+            return Err(ApiError::new(
+                ErrorCode::ProtectedOperation,
+                "Deleting a remote branch requires explicit confirmation",
+            ));
+        }
+        self.mutate(repository_id, |backend, path| async move {
+            backend
+                .delete_remote_branch(&path, remote, branch, confirmed)
+                .await
+        })
+        .await
+    }
+
     pub async fn set_upstream(
         &self,
         repository_id: &RepositoryId,
@@ -1448,6 +1469,16 @@ mod tests {
             _confirmed: bool,
         ) -> ApiResult<MutationResult> {
             self.mutation("delete_branch", path).await
+        }
+
+        async fn delete_remote_branch(
+            &self,
+            path: &Path,
+            _remote: &str,
+            _branch: &str,
+            _confirmed: bool,
+        ) -> ApiResult<MutationResult> {
+            self.mutation("delete_remote_branch", path).await
         }
 
         async fn set_upstream(

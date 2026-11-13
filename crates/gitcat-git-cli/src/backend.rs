@@ -2861,6 +2861,34 @@ impl GitBackend for GitCliBackend {
         .await
     }
 
+    async fn delete_remote_branch(
+        &self,
+        path: &Path,
+        remote: &str,
+        branch: &str,
+        confirmed: bool,
+    ) -> ApiResult<MutationResult> {
+        if !confirmed {
+            return Err(confirmation_required(
+                "Deleting a remote branch requires confirmation",
+            ));
+        }
+        self.validate_branch_name(branch).await?;
+        if branch == "HEAD" {
+            return Err(ApiError::new(
+                ErrorCode::InvalidRefName,
+                "The remote HEAD is not a branch",
+            ));
+        }
+        let remotes = self.validate_remote_selection(path, Some(remote)).await?;
+        // The full ref name keeps a tag of the same name out of it.
+        let mut args = os_args(&["push", "--porcelain", "--delete", "--", remote]);
+        args.push(format!("refs/heads/{branch}").into());
+        let run = self.network_options(&remotes, Some(remote), true).await;
+        self.mutate_network(path, args, CancellationToken::new(), run)
+            .await
+    }
+
     async fn set_upstream(
         &self,
         path: &Path,

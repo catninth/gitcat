@@ -1136,6 +1136,25 @@ class DemoGitCatApi implements GitCatApi {
     return this.mutation();
   }
 
+  async deleteRemoteBranch(
+    repositoryId: RepositoryId,
+    remote: string,
+    branch: string,
+    confirmed: boolean,
+  ): Promise<MutationResult> {
+    await delay();
+    this.ensureRepository(repositoryId);
+    if (!confirmed) fail("protected_operation", "Deleting a remote branch requires confirmation");
+    const name = `${remote}/${branch}`;
+    if (!this.snapshotValue.remote_branches.some((candidate) => candidate.name === name)) {
+      fail("invalid_ref_name", `Unknown remote branch: ${name}`);
+    }
+    this.snapshotValue.remote_branches = this.snapshotValue.remote_branches.filter(
+      (candidate) => candidate.name !== name,
+    );
+    return this.mutation();
+  }
+
   async setUpstream(
     repositoryId: RepositoryId,
     branchName: string,

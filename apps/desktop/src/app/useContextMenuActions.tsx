@@ -305,7 +305,7 @@ export function useContextMenuActions({
         // Any other branch ref: a remote-tracking ref of the checked-out branch
         // keeps pull/push, everything else only integrates into HEAD.
         if (branchRef) {
-            const canDelete = !isRemoteRef && Boolean(refInfo);
+            const canDelete = Boolean(refInfo);
             return [
                 ...(reference.tracksHead && refInfo
                     ? [
@@ -332,7 +332,9 @@ export function useContextMenuActions({
                 },
                 ...historyItems(true),
                 ...(isRemoteRef
-                    ? []
+                    ? [
+                        { id: "delete_ref", label: `Delete ${displayName}`, icon: <Trash2 size={15} />, danger: true, disabled: !canDelete, separatorBefore: true },
+                    ]
                     : [
                         { id: "rename_ref", label: `Rename ${displayName}`, icon: <PencilFilled size={15} />, disabled: !refInfo, separatorBefore: true },
                         { id: "delete_ref", label: `Delete ${displayName}`, icon: <Trash2 size={15} />, danger: true, disabled: !canDelete },
@@ -450,7 +452,13 @@ export function useContextMenuActions({
                 if (reference.refInfo && !reference.isRemoteRef) setPrompt({ kind: "rename_branch", branch: reference.refInfo });
                 break;
             case "delete_ref":
-                if (reference.refInfo && !reference.isRemoteRef) {
+                if (reference.refInfo && reference.isRemoteRef && reference.localName) {
+                    setConfirmRequest({
+                        kind: "delete_remote_branch",
+                        remote: remoteNameOf(reference.refInfo.name),
+                        branch: reference.localName,
+                    });
+                } else if (reference.refInfo && !reference.isRemoteRef) {
                     if (reference.refInfo.is_head) addToast(checkedOutDeleteToast(reference.refInfo.name));
                     else setConfirmRequest({ kind: "delete_branch", name: reference.refInfo.name, force: false });
                 }
@@ -620,7 +628,6 @@ export function useContextMenuActions({
                 label: `Delete ${displayName}`,
                 icon: <Trash2 size={15} />,
                 danger: true,
-                disabled: !isLocal,
             },
             { id: "copy", label: "Copy branch name", icon: <Copy size={15} />, separatorBefore: true },
         ];
@@ -658,7 +665,10 @@ export function useContextMenuActions({
                 if (isLocal) setPrompt({ kind: "rename_branch", branch });
                 break;
             case "delete":
-                if (!isLocal) break;
+                if (!isLocal) {
+                    setConfirmRequest({ kind: "delete_remote_branch", remote: remoteNameOf(branch.name), branch: displayName });
+                    break;
+                }
                 if (branch.is_head) addToast(checkedOutDeleteToast(branch.name));
                 else setConfirmRequest({ kind: "delete_branch", name: branch.name, force: false });
                 break;

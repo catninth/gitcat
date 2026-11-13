@@ -150,6 +150,12 @@ export interface GitCatCommands {
     confirmed: boolean,
     expected: ExpectedState,
   ): Promise<MutationResult>;
+  deleteRemoteBranch(
+    repositoryId: RepositoryId,
+    remote: string,
+    branch: string,
+    confirmed: boolean,
+  ): Promise<MutationResult>;
   setUpstream(
     repositoryId: RepositoryId,
     branch: string,
@@ -353,6 +359,8 @@ export function createTauriGitCatApi(): GitCatApi {
         confirmed,
         expected,
       }),
+    deleteRemoteBranch: (repositoryId, remote, branch, confirmed) =>
+      invokeTauri("remote_branch_delete", { repositoryId, remote, branch, confirmed }),
     setUpstream: (repositoryId, branch, upstream) =>
       invokeTauri("branch_set_upstream", { repositoryId, branch, upstream }),
     mergeBranch: (repositoryId, branch) =>

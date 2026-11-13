@@ -506,6 +506,18 @@ async fn branch_delete(
 }
 
 #[tauri::command]
+async fn remote_branch_delete(
+    core: State<'_, Arc<CoreApi>>,
+    repository_id: RepositoryId,
+    remote: String,
+    branch: String,
+    confirmed: bool,
+) -> ApiResult<MutationResult> {
+    core.delete_remote_branch(&repository_id, &remote, &branch, confirmed)
+        .await
+}
+
+#[tauri::command]
 async fn branch_set_upstream(
     core: State<'_, Arc<CoreApi>>,
     repository_id: RepositoryId,
@@ -1060,6 +1072,7 @@ pub fn run() {
             branch_checkout,
             branch_rename,
             branch_delete,
+            remote_branch_delete,
             branch_set_upstream,
             branch_merge,
             remote_add,

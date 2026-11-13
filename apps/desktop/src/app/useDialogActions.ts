@@ -113,6 +113,14 @@ export function useDialogActions({
                     },
                 });
                 break;
+            case "delete_remote_branch":
+                void runMutation("Remote branch deleted", (repository) => gitcatApi.deleteRemoteBranch(
+                    repository.repository_id,
+                    request.remote,
+                    request.branch,
+                    true,
+                ), { queueKey: `delete_remote_branch:${request.remote}:${request.branch}` });
+                break;
             case "delete_stash":
                 void runMutation("Stash deleted", (repository) => gitcatApi.stashDrop(
                     repository.repository_id,
@@ -160,6 +168,10 @@ export function useDialogActions({
                     message: `This is a destructive operation, are you sure you want to delete "${confirmRequest.name}"?`,
                     confirmLabel: "Delete",
                 };
+            case "delete_remote_branch": return {
+                message: `This is a destructive operation, are you sure you want to delete "${confirmRequest.branch}" on the remote "${confirmRequest.remote}"? It is removed for everyone who uses that remote.`,
+                confirmLabel: "Delete",
+            };
             case "delete_stash": {
                 const label = confirmRequest.message.trim();
                 return {
