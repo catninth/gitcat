@@ -1,7 +1,7 @@
 {
   "name": "gitcat-desktop",
   "private": true,
-  "version": "1.14.1",
+  "version": "1.15.0",
   "license": "MPL-2.0",
   "type": "module",
   "scripts": {
