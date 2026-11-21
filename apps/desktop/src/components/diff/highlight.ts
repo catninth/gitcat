@@ -3,12 +3,19 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { languageForPath, tokenizeLinesAsync } from "../../lib/syntax";
 import type { SyntaxToken } from "../../lib/syntax";
 import type { DiffHunk, DiffLine, FileDiff } from "../../lib/types";
+import type { ChangeRange, IntralineMap } from "./intraline";
 
 export type HighlightMap = ReadonlyMap<DiffLine, SyntaxToken[]>;
 
 const MAX_HIGHLIGHT_LINES = 12000;
 
 export const HighlightContext = createContext<HighlightMap | null>(null);
+
+export const IntralineContext = createContext<IntralineMap | null>(null);
+
+export function useLineChanges(line: DiffLine): readonly ChangeRange[] | undefined {
+  return useContext(IntralineContext)?.get(line);
+}
 
 export function useHighlightedLine(line: DiffLine): SyntaxToken[] | null {
   return useContext(HighlightContext)?.get(line) ?? null;

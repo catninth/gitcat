@@ -1,10 +1,10 @@
 import type { DiffHunk, DiffLine } from "../../lib/types";
 import type { DiffViewMode } from "./DiffParts";
+import { hunkParts } from "./intraline";
 
 export interface SplitRow {
   left: DiffLine | null;
   right: DiffLine | null;
-  marker: DiffLine | null;
 }
 
 export type MarkKind = "addition" | "deletion" | "change";
@@ -24,42 +24,17 @@ export interface DiffMap {
 // sides line up even when the runs have different lengths.
 export function toSplitRows(lines: readonly DiffLine[]): SplitRow[] {
   const rows: SplitRow[] = [];
-  let index = 0;
 
-  while (index < lines.length) {
-    const line = lines[index];
-
-    if (line.kind === "context") {
-      rows.push({ left: line, right: line, marker: null });
-      index += 1;
+  for (const part of hunkParts(lines)) {
+    if (part.kind === "context") {
+      rows.push({ left: part.line, right: part.line });
       continue;
     }
 
-    if (line.kind === "no_newline") {
-      rows.push({ left: null, right: null, marker: line });
-      index += 1;
-      continue;
-    }
-
-    const deletions: DiffLine[] = [];
-    const additions: DiffLine[] = [];
-    while (
-      index < lines.length
-      && (lines[index].kind === "deletion" || lines[index].kind === "addition")
-    ) {
-      const changedLine = lines[index];
-      if (changedLine.kind === "deletion") deletions.push(changedLine);
-      else additions.push(changedLine);
-      index += 1;
-    }
-
+    const { deletions, additions } = part.block;
     const rowCount = Math.max(deletions.length, additions.length);
     for (let pairIndex = 0; pairIndex < rowCount; pairIndex += 1) {
-      rows.push({
-        left: deletions[pairIndex] ?? null,
-        right: additions[pairIndex] ?? null,
-        marker: null,
-      });
+      rows.push({ left: deletions[pairIndex] ?? null, right: additions[pairIndex] ?? null });
     }
   }
 
@@ -118,6 +93,7 @@ function rowKinds(hunks: readonly DiffHunk[], mode: DiffViewMode): (MarkKind | n
     }
 
     for (const line of hunk.lines) {
+      if (line.kind === "no_newline") continue;
       kinds.push(
         line.kind === "addition" ? "addition" : line.kind === "deletion" ? "deletion" : null,
       );

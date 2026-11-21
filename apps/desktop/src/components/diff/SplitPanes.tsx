@@ -39,16 +39,6 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
         </caption>
         <tbody>
           {rows.map((row, rowIndex) => {
-            if (row.marker) {
-              return (
-                <tr className="gc-diff-line gc-diff-line--no-newline" key={`marker:${rowIndex}`}>
-                  <td className="gc-diff-line__content" colSpan={2}>
-                    <LineContent line={row.marker} />
-                  </td>
-                </tr>
-              );
-            }
-
             const line = side === "old" ? row.left : row.right;
             const number = side === "old" ? line?.old_line : line?.new_line;
             const rowKind = row.left?.kind === "deletion" || row.right?.kind === "addition"

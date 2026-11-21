@@ -10,11 +10,12 @@ import { IconButton } from "../ui";
 import { DiffMinimap } from "./DiffMinimap";
 import { ChangeKind, DIFF_VIEW_MODES, DiffState, ModeButton, isWholeFileMode } from "./DiffParts";
 import type { DiffViewMode } from "./DiffParts";
-import { HighlightContext, useDiffHighlight } from "./highlight";
+import { HighlightContext, IntralineContext, useDiffHighlight } from "./highlight";
 import { InlineHunk } from "./InlineHunk";
 import { LineActionsContext, isChangedLine } from "./lineActions";
 import type { DiffLineActions } from "./lineActions";
 import { SplitPanes } from "./SplitPanes";
+import { buildIntralineMap } from "./intraline";
 import { buildDiffMap, maxLineWidth } from "./rows";
 
 export interface DiffViewerProps {
@@ -75,6 +76,7 @@ export function DiffViewer({
   );
   const contentColumns = useMemo(() => maxLineWidth(diff?.hunks ?? []), [diff]);
   const highlight = useDiffHighlight(diff);
+  const intraline = useMemo(() => buildIntralineMap(diff?.binary ? [] : diff?.hunks ?? []), [diff]);
 
   const openLineMenu = useCallback((event: ReactMouseEvent, line: DiffLine) => {
     event.preventDefault();
@@ -192,6 +194,7 @@ export function DiffViewer({
         <DiffState>No text changes to display.</DiffState>
       ) : (
         <HighlightContext.Provider value={highlight}>
+        <IntralineContext.Provider value={intraline}>
           <LineActionsContext.Provider value={lineActionsContext}>
           <div className="flex min-h-0 min-w-0 flex-1">
             {mode === "split" ? (
@@ -216,6 +219,7 @@ export function DiffViewer({
             {showMinimap ? <DiffMinimap map={diffMap} scrollRef={scrollRef} /> : null}
           </div>
           </LineActionsContext.Provider>
+        </IntralineContext.Provider>
         </HighlightContext.Provider>
       )}
       {lineMenu ? (

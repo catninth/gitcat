@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { cx } from "../../lib";
 import type { DiffLine, DiffViewMode } from "../../lib/types";
 import { fileStatusClass, fileStatusIcon } from "../file-tree";
-import { useHighlightedLine } from "./highlight";
+import { useHighlightedLine, useLineChanges } from "./highlight";
+import { segmentLine } from "./intraline";
 
 export type { DiffViewMode };
 
@@ -32,6 +33,8 @@ export function displayLineNumber(value: number | null): string {
 
 export function LineContent({ line }: { line: DiffLine }) {
   const tokens = useHighlightedLine(line);
+  const changes = useLineChanges(line);
+  const plain = tokens === null && changes === undefined;
 
   return (
     <>
@@ -39,11 +42,17 @@ export function LineContent({ line }: { line: DiffLine }) {
         {linePrefix(line.kind)}
       </span>
       <code className="gc-diff-line__code">
-        {tokens === null
+        {plain
           ? line.content || " "
-          : tokens.map((token, index) => (
-            <span className={`gc-tok gc-tok--${token.cls}`} key={index}>
-              {token.text}
+          : segmentLine(line.content, tokens, changes).map((segment, index) => (
+            <span
+              className={cx(
+                segment.cls && `gc-tok gc-tok--${segment.cls}`,
+                segment.changed && "gc-diff-word",
+              ) || undefined}
+              key={index}
+            >
+              {segment.text}
             </span>
           ))}
       </code>

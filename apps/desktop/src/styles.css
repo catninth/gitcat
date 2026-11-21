@@ -814,14 +814,23 @@
   @apply text-danger;
 }
 
-.gc-diff-line__content--empty {
-  background: color-mix(in srgb, var(--gc-surface) 45%, transparent);
+/* The words that differ between a removed line and the line that replaced it. */
+.gc-diff-line--addition .gc-diff-word,
+.gc-diff-line__content--addition .gc-diff-word {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--gc-success) 34%, var(--gc-diff-add));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gc-success) 45%, transparent);
 }
 
-.gc-diff-line--no-newline .gc-diff-line__content {
-  @apply italic text-warning;
-  padding-left: 17px !important;
-  background: color-mix(in srgb, var(--gc-warning) 8%, transparent);
+.gc-diff-line--deletion .gc-diff-word,
+.gc-diff-line__content--deletion .gc-diff-word {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--gc-danger) 34%, var(--gc-diff-delete));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gc-danger) 45%, transparent);
+}
+
+.gc-diff-line__content--empty {
+  background: color-mix(in srgb, var(--gc-surface) 45%, transparent);
 }
 
 .gc-diff-table--side {

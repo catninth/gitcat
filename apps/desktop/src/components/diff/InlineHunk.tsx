@@ -28,17 +28,7 @@ export const InlineHunk = memo(function InlineHunk({ hunk, index, showHeader = t
         </caption>
         <tbody>
           {hunk.lines.map((line, lineIndex) => {
-            if (line.kind === "no_newline") {
-              return (
-                <tr className="gc-diff-line gc-diff-line--no-newline" key={`${lineIndex}:${line.content}`}>
-                  <td aria-hidden="true" className="gc-diff-line__number" />
-                  <td aria-hidden="true" className="gc-diff-line__number" />
-                  <td className="gc-diff-line__content">
-                    <LineContent line={line} />
-                  </td>
-                </tr>
-              );
-            }
+            if (line.kind === "no_newline") return null;
 
             return (
               <tr
