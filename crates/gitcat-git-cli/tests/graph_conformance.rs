@@ -207,264 +207,75 @@ struct MaterializedScenario {
     oids: BTreeMap<String, String>,
 }
 
-#[test]
-fn graph_conformance_scenarios_are_valid() {
-    let checkout_switch = parse_scenario(CHECKOUT_SWITCH);
-    validate_scenario(&checkout_switch);
-    let checkout_wip = parse_scenario(CHECKOUT_WIP);
-    validate_scenario(&checkout_wip);
-    let stash_single = parse_scenario(STASH_SINGLE);
-    validate_scenario(&stash_single);
-    let stash_lifecycle = parse_scenario(STASH_LIFECYCLE);
-    validate_scenario(&stash_lifecycle);
-    let stash_checkout = parse_scenario(STASH_CHECKOUT);
-    validate_scenario(&stash_checkout);
-    let disconnected_checkout = parse_scenario(DISCONNECTED_CHECKOUT);
-    validate_scenario(&disconnected_checkout);
-    let disconnected_interior_reuse = parse_scenario(DISCONNECTED_INTERIOR_REUSE);
-    validate_scenario(&disconnected_interior_reuse);
-    let stash_index_collision = parse_scenario(STASH_INDEX_COLLISION);
-    validate_scenario(&stash_index_collision);
-    let convergence_lane_reuse = parse_scenario(CONVERGENCE_LANE_REUSE);
-    validate_scenario(&convergence_lane_reuse);
-    let merge_ladder = parse_scenario(MERGE_LADDER);
-    validate_scenario(&merge_ladder);
+/// Every scenario gets its own oracle comparison, so the scenarios replay in
+/// parallel and one mismatch does not hide the others, plus an ignored helper
+/// that materializes the repository for a fresh GitKraken capture.
+macro_rules! conformance_scenarios {
+    ($($scenario:ident, $oracle:ident => $compare:ident, $materialize:ident;)+) => {
+        const ALL_SCENARIOS: &[(&str, &str)] = &[$(($scenario, $oracle)),+];
 
-    let oracle: serde_json::Value =
-        serde_json::from_str(CHECKOUT_SWITCH_ORACLE).expect("GitKraken oracle is valid JSON");
-    validate_oracle(&checkout_switch, &oracle);
+        $(
+            #[tokio::test]
+            async fn $compare() {
+                compare_with_oracle($scenario, $oracle).await;
+            }
 
-    let oracle: serde_json::Value =
-        serde_json::from_str(CHECKOUT_WIP_ORACLE).expect("GitKraken WIP oracle is valid JSON");
-    validate_oracle(&checkout_wip, &oracle);
-
-    let oracle: serde_json::Value =
-        serde_json::from_str(STASH_SINGLE_ORACLE).expect("GitKraken stash oracle is valid JSON");
-    validate_oracle(&stash_single, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(STASH_LIFECYCLE_ORACLE)
-        .expect("GitKraken stash lifecycle oracle is valid JSON");
-    validate_oracle(&stash_lifecycle, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(STASH_CHECKOUT_ORACLE)
-        .expect("GitKraken stash checkout oracle is valid JSON");
-    validate_oracle(&stash_checkout, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(DISCONNECTED_CHECKOUT_ORACLE)
-        .expect("GitKraken disconnected checkout oracle is valid JSON");
-    validate_oracle(&disconnected_checkout, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(DISCONNECTED_INTERIOR_REUSE_ORACLE)
-        .expect("GitKraken disconnected interior reuse oracle is valid JSON");
-    validate_oracle(&disconnected_interior_reuse, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(STASH_INDEX_COLLISION_ORACLE)
-        .expect("GitKraken stash index collision oracle is valid JSON");
-    validate_oracle(&stash_index_collision, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(CONVERGENCE_LANE_REUSE_ORACLE)
-        .expect("GitKraken convergence lane reuse oracle is valid JSON");
-    validate_oracle(&convergence_lane_reuse, &oracle);
-
-    let oracle: serde_json::Value = serde_json::from_str(MERGE_LADDER_ORACLE)
-        .expect("GitKraken merge ladder oracle is valid JSON");
-    validate_oracle(&merge_ladder, &oracle);
+            #[test]
+            #[ignore = "manually materializes a repository for GitKraken reference capture"]
+            fn $materialize() {
+                materialize_for_gitkraken($scenario);
+            }
+        )+
+    };
 }
 
-#[tokio::test]
-async fn gitcat_history_matches_gitkraken_semantic_oracles() {
-    for (scenario_json, oracle_json) in [
-        (CHECKOUT_SWITCH, CHECKOUT_SWITCH_ORACLE),
-        (CHECKOUT_WIP, CHECKOUT_WIP_ORACLE),
-        (STASH_SINGLE, STASH_SINGLE_ORACLE),
-        (STASH_LIFECYCLE, STASH_LIFECYCLE_ORACLE),
-        (STASH_CHECKOUT, STASH_CHECKOUT_ORACLE),
-        (DISCONNECTED_CHECKOUT, DISCONNECTED_CHECKOUT_ORACLE),
-        (
-            DISCONNECTED_INTERIOR_REUSE,
-            DISCONNECTED_INTERIOR_REUSE_ORACLE,
-        ),
-        (STASH_INDEX_COLLISION, STASH_INDEX_COLLISION_ORACLE),
-        (CONVERGENCE_LANE_REUSE, CONVERGENCE_LANE_REUSE_ORACLE),
-        (MERGE_LADDER, MERGE_LADDER_ORACLE),
-    ] {
+conformance_scenarios! {
+    CHECKOUT_SWITCH, CHECKOUT_SWITCH_ORACLE
+        => oracle_checkout_switch, materialize_checkout_switch_for_gitkraken;
+    CHECKOUT_WIP, CHECKOUT_WIP_ORACLE
+        => oracle_checkout_wip, materialize_checkout_wip_for_gitkraken;
+    STASH_SINGLE, STASH_SINGLE_ORACLE
+        => oracle_stash_single, materialize_stash_single_for_gitkraken;
+    STASH_LIFECYCLE, STASH_LIFECYCLE_ORACLE
+        => oracle_stash_lifecycle, materialize_stash_lifecycle_for_gitkraken;
+    STASH_CHECKOUT, STASH_CHECKOUT_ORACLE
+        => oracle_stash_checkout, materialize_stash_checkout_for_gitkraken;
+    DISCONNECTED_CHECKOUT, DISCONNECTED_CHECKOUT_ORACLE
+        => oracle_disconnected_checkout, materialize_disconnected_checkout_for_gitkraken;
+    DISCONNECTED_INTERIOR_REUSE, DISCONNECTED_INTERIOR_REUSE_ORACLE
+        => oracle_disconnected_interior_reuse, materialize_disconnected_interior_reuse_for_gitkraken;
+    STASH_INDEX_COLLISION, STASH_INDEX_COLLISION_ORACLE
+        => oracle_stash_index_collision, materialize_stash_index_collision_for_gitkraken;
+    CONVERGENCE_LANE_REUSE, CONVERGENCE_LANE_REUSE_ORACLE
+        => oracle_convergence_lane_reuse, materialize_convergence_lane_reuse_for_gitkraken;
+    MERGE_LADDER, MERGE_LADDER_ORACLE
+        => oracle_merge_ladder, materialize_merge_ladder_for_gitkraken;
+}
+
+#[test]
+fn graph_conformance_scenarios_are_valid() {
+    for (scenario_json, oracle_json) in ALL_SCENARIOS {
         let scenario = parse_scenario(scenario_json);
         validate_scenario(&scenario);
-        let oracle: SemanticOracle =
-            serde_json::from_str(oracle_json).expect("GitKraken semantic oracle is valid JSON");
-        let temporary = tempfile::tempdir().expect("temporary graph conformance directory");
-        let materialized = materialize_scenario_in(&scenario, temporary.path());
-
-        replay_and_compare(&scenario, &oracle, &materialized).await;
+        let oracle: serde_json::Value =
+            serde_json::from_str(oracle_json).expect("GitKraken oracle is valid JSON");
+        validate_oracle(&scenario, &oracle);
     }
 }
 
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_checkout_switch_for_gitkraken() {
-    let scenario = parse_scenario(CHECKOUT_SWITCH);
+async fn compare_with_oracle(scenario_json: &str, oracle_json: &str) {
+    let scenario = parse_scenario(scenario_json);
     validate_scenario(&scenario);
+    let oracle: SemanticOracle =
+        serde_json::from_str(oracle_json).expect("GitKraken semantic oracle is valid JSON");
+    let temporary = tempfile::tempdir().expect("temporary graph conformance directory");
+    let materialized = materialize_scenario_in(&scenario, temporary.path());
 
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
+    replay_and_compare(&scenario, &oracle, &materialized).await;
 }
 
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_checkout_wip_for_gitkraken() {
-    let scenario = parse_scenario(CHECKOUT_WIP);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_stash_single_for_gitkraken() {
-    let scenario = parse_scenario(STASH_SINGLE);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_stash_lifecycle_for_gitkraken() {
-    let scenario = parse_scenario(STASH_LIFECYCLE);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_stash_checkout_for_gitkraken() {
-    let scenario = parse_scenario(STASH_CHECKOUT);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_disconnected_checkout_for_gitkraken() {
-    let scenario = parse_scenario(DISCONNECTED_CHECKOUT);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_disconnected_interior_reuse_for_gitkraken() {
-    let scenario = parse_scenario(DISCONNECTED_INTERIOR_REUSE);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_stash_index_collision_for_gitkraken() {
-    let scenario = parse_scenario(STASH_INDEX_COLLISION);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_merge_ladder_for_gitkraken() {
-    let scenario = parse_scenario(MERGE_LADDER);
-    validate_scenario(&scenario);
-
-    let repository = materialize_scenario(&scenario);
-    let instructions = repository
-        .parent()
-        .expect("materialized repository has a parent")
-        .join("capture-instructions.txt");
-    fs::write(&instructions, capture_instructions(&scenario, &repository))
-        .expect("write capture instructions");
-
-    println!("GitKraken fixture: {}", repository.display());
-    println!("Capture checklist: {}", instructions.display());
-}
-
-#[test]
-#[ignore = "manually materializes a repository for GitKraken reference capture"]
-fn materialize_convergence_lane_reuse_for_gitkraken() {
-    let scenario = parse_scenario(CONVERGENCE_LANE_REUSE);
+fn materialize_for_gitkraken(scenario_json: &str) {
+    let scenario = parse_scenario(scenario_json);
     validate_scenario(&scenario);
 
     let repository = materialize_scenario(&scenario);
