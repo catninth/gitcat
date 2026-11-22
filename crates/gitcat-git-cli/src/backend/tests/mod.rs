@@ -66,7 +66,53 @@ fn git_with_date(path: &Path, args: &[&str], date: &str) {
     );
 }
 
+/// Fixture repositories are built through the backend, and every backend call
+/// starts several Git processes -- the dominant cost of this suite on Windows.
+/// The common fixtures are therefore built once per test process and each test
+/// gets its own copy of the finished repository, which costs a directory copy.
+///
+/// The template directories are never dropped (statics are not), so each test
+/// run leaves one small repository per fixture in the temporary directory.
+async fn copy_of_template(template: &Path) -> tempfile::TempDir {
+    let source = template.to_path_buf();
+    let copy = tempdir().expect("temp repository");
+    let target = copy.path().to_path_buf();
+    tokio::task::spawn_blocking(move || copy_tree(&source, &target))
+        .await
+        .expect("copy fixture template");
+    copy
+}
+
+fn copy_tree(source: &Path, target: &Path) {
+    for entry in fs::read_dir(source).expect("read fixture template") {
+        let entry = entry.expect("fixture template entry");
+        let destination = target.join(entry.file_name());
+        if entry.file_type().expect("fixture entry type").is_dir() {
+            fs::create_dir(&destination).expect("create fixture directory");
+            copy_tree(&entry.path(), &destination);
+        } else {
+            fs::copy(entry.path(), &destination).expect("copy fixture file");
+        }
+    }
+}
+
 async fn committed_repository() -> (tempfile::TempDir, GitCliBackend, String) {
+    static TEMPLATE: tokio::sync::OnceCell<(tempfile::TempDir, String)> =
+        tokio::sync::OnceCell::const_new();
+    let (template, oid) = TEMPLATE
+        .get_or_init(|| async {
+            let (directory, _, oid) = build_committed_repository().await;
+            (directory, oid)
+        })
+        .await;
+    (
+        copy_of_template(template.path()).await,
+        GitCliBackend::default(),
+        oid.clone(),
+    )
+}
+
+async fn build_committed_repository() -> (tempfile::TempDir, GitCliBackend, String) {
     let directory = tempdir().expect("temp repository");
     let backend = GitCliBackend::default();
     backend
@@ -171,6 +217,17 @@ fn preflight_observable_state(path: &Path) -> (String, String, String, Vec<u8>) 
 }
 
 async fn conflicted_repository() -> (tempfile::TempDir, GitCliBackend) {
+    static TEMPLATE: tokio::sync::OnceCell<tempfile::TempDir> = tokio::sync::OnceCell::const_new();
+    let template = TEMPLATE
+        .get_or_init(|| async { build_conflicted_repository().await.0 })
+        .await;
+    (
+        copy_of_template(template.path()).await,
+        GitCliBackend::default(),
+    )
+}
+
+async fn build_conflicted_repository() -> (tempfile::TempDir, GitCliBackend) {
     let (directory, backend, base_oid) = committed_repository().await;
     backend
         .create_branch(directory.path(), "conflicting", &base_oid, true)
