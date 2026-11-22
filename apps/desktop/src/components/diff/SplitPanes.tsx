@@ -86,19 +86,20 @@ export function SplitPanes({ contentColumns, hunks, leftRef, mapped, showHeaders
     const right = rightRef.current;
     if (!left || !right) return;
 
-    let driver: HTMLDivElement | null = null;
-    let frame = 0;
+    // The position each pane was last moved to by the other one. A pane's scroll
+    // event arrives a frame after it was set, so echoing it back would drag the pane
+    // the user is moving back to where it was a frame ago. Reading the value back
+    // after writing it also captures the clamp when the panes' widths differ.
+    const echoes = new WeakMap<HTMLDivElement, { top: number; left: number }>();
 
     const follow = (from: HTMLDivElement, to: HTMLDivElement) => () => {
-      if (driver && driver !== from) return;
-      driver = from;
+      const echo = echoes.get(from);
+      if (echo && echo.top === from.scrollTop && echo.left === from.scrollLeft) return;
+      echoes.delete(from);
+      if (to.scrollTop === from.scrollTop && to.scrollLeft === from.scrollLeft) return;
       to.scrollTop = from.scrollTop;
       to.scrollLeft = from.scrollLeft;
-      if (frame) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        driver = null;
-        frame = 0;
-      });
+      echoes.set(to, { top: to.scrollTop, left: to.scrollLeft });
     };
 
     const onLeft = follow(left, right);
@@ -107,7 +108,6 @@ export function SplitPanes({ contentColumns, hunks, leftRef, mapped, showHeaders
     right.addEventListener("scroll", onRight, { passive: true });
 
     return () => {
-      if (frame) cancelAnimationFrame(frame);
       left.removeEventListener("scroll", onLeft);
       right.removeEventListener("scroll", onRight);
     };
