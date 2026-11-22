@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { DiffMap, MarkKind } from "./rows";
@@ -14,6 +14,33 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+interface MarkBox {
+  top: number;
+  height: number;
+}
+
+// Places each mark where its rows actually sit in the scroller, as a fraction of
+// the scrollable height. A file shorter than the viewport therefore marks only the
+// part of the track its lines cover, and hunk headers between rows are accounted for.
+function measureMarks(map: DiffMap, scroller: HTMLElement): MarkBox[] | null {
+  const rows = scroller.querySelectorAll<HTMLElement>("tr.gc-diff-line");
+  if (rows.length < map.totalRows || scroller.offsetHeight === 0) return null;
+
+  const box = scroller.getBoundingClientRect();
+  const scale = box.height / scroller.offsetHeight || 1;
+  const origin = box.top - scroller.scrollTop * scale;
+  const total = Math.max(scroller.scrollHeight, scroller.clientHeight) * scale;
+
+  return map.marks.map((mark) => {
+    const first = rows[mark.start].getBoundingClientRect();
+    const last = rows[mark.start + mark.length - 1].getBoundingClientRect();
+    return {
+      top: clamp((first.top - origin) / total, 0, 1),
+      height: clamp((last.bottom - first.top) / total, 0, 1),
+    };
+  });
+}
+
 export function DiffMinimap({ map, scrollRef }: {
   map: DiffMap;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -23,6 +50,7 @@ export function DiffMinimap({ map, scrollRef }: {
   const dragOffsetRef = useRef(0);
   const pendingClientYRef = useRef<number | null>(null);
   const frameRef = useRef(0);
+  const [boxes, setBoxes] = useState<{ map: DiffMap; boxes: MarkBox[] | null } | null>(null);
 
   const syncThumb = useCallback(() => {
     const scroller = scrollRef.current;
@@ -34,14 +62,21 @@ export function DiffMinimap({ map, scrollRef }: {
     thumb.style.height = `max(6px, ${clamp(scroller.clientHeight / total, 0, 1) * 100}%)`;
   }, [scrollRef]);
 
-  useEffect(() => {
+  // A layout effect, so the first measurement lands before the browser paints and
+  // the marks never show at an unmeasured position.
+  useLayoutEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
 
-    syncThumb();
+    const sync = () => {
+      syncThumb();
+      setBoxes({ map, boxes: measureMarks(map, scroller) });
+    };
+    sync();
     scroller.addEventListener("scroll", syncThumb, { passive: true });
-    const observer = new ResizeObserver(syncThumb);
+    const observer = new ResizeObserver(sync);
     observer.observe(scroller);
+    for (const child of Array.from(scroller.children)) observer.observe(child);
 
     return () => {
       scroller.removeEventListener("scroll", syncThumb);
@@ -111,22 +146,28 @@ export function DiffMinimap({ map, scrollRef }: {
   return (
     <div
       aria-hidden="true"
-      className="relative w-3.5 shrink-0 touch-none border-l border-border bg-[color-mix(in_srgb,var(--gc-panel)_55%,var(--gc-background))]"
+      className="relative w-[18px] shrink-0 touch-none border-l border-border bg-[color-mix(in_srgb,var(--gc-panel)_55%,var(--gc-background))]"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       ref={trackRef}
     >
-      {map.marks.map((mark) => (
-        <div
-          className="absolute inset-x-0.5 rounded-[1px]"
-          key={`${mark.kind}:${mark.start}`}
-          style={{
-            background: MARK_BACKGROUND[mark.kind],
-            top: `${(mark.start / map.totalRows) * 100}%`,
-            height: `max(2px, ${(mark.length / map.totalRows) * 100}%)`,
-          }}
-        />
-      ))}
+      {boxes?.map === map && map.marks.map((mark, index) => {
+        const box = boxes.boxes?.[index] ?? {
+          top: mark.start / map.totalRows,
+          height: mark.length / map.totalRows,
+        };
+        return (
+          <div
+            className="absolute inset-x-px rounded-[1px]"
+            key={`${mark.kind}:${mark.start}`}
+            style={{
+              background: MARK_BACKGROUND[mark.kind],
+              top: `${box.top * 100}%`,
+              height: `max(3px, ${box.height * 100}%)`,
+            }}
+          />
+        );
+      })}
       <div
         className="pointer-events-none absolute inset-x-0 border-y border-[color-mix(in_srgb,var(--gc-muted)_45%,transparent)] bg-[color-mix(in_srgb,var(--gc-muted)_16%,transparent)]"
         ref={thumbRef}
