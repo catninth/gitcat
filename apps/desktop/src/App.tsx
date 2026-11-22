@@ -1,7 +1,7 @@
 import { AlertTriangle, LoaderCircle, Tag, } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
 
-import { getCommitGraphWidth, getCommitLaneXCss, getCommitRowBranchOrigin, getWipLane, getWipLaneColorVariable, } from "./components/CommitGraph";
+import { getCommitGraphWidth, getCommitLaneXCss, getCommitRowBranchOrigin, getWipLane, getWipLaneColorVariable, } from "./components/commitGraphGeometry";
 import { emptyChangeCounts, fileChangeCounts, sumChangeCounts } from "./components/file-tree";
 import type { FolderCollapseTarget } from "./components/file-tree";
 import { CommitNowBar } from "./components/CommitNowBar";

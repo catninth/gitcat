@@ -11,7 +11,7 @@ import stashCheckoutOracleJson from "../../../crates/gitcat-git-cli/tests/fixtur
 import stashIndexCollisionOracleJson from "../../../crates/gitcat-git-cli/tests/fixtures/graph-conformance/oracles/gitkraken-12.4.0-windows/stash-index-collision.json";
 import stashLifecycleOracleJson from "../../../crates/gitcat-git-cli/tests/fixtures/graph-conformance/oracles/gitkraken-12.4.0-windows/stash-lifecycle.json";
 import stashSingleOracleJson from "../../../crates/gitcat-git-cli/tests/fixtures/graph-conformance/oracles/gitkraken-12.4.0-windows/stash-single.json";
-import { buildGraphGeometry } from "../src/components/CommitGraph";
+import { buildGraphGeometry } from "../src/components/commitGraphGeometry";
 import { buildBranchColors, getGraphEdgeColor } from "../src/components/graphPresentation";
 import type { CommitSummary, GraphEdge } from "../src/lib/types";
 

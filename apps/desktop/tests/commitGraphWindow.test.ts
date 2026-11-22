@@ -6,7 +6,7 @@ import {
   getCommitGraphRowWindow,
   pathsInRowWindow,
   type GraphPath,
-} from "../src/components/CommitGraph";
+} from "../src/components/commitGraphGeometry";
 import type { CommitSummary } from "../src/lib/types";
 
 const ROW_STRIDE = 29;

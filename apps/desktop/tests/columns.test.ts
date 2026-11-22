@@ -8,7 +8,7 @@ import {
   getCommitLaneX,
   getCommitLaneXCss,
   isCommitGraphCollapsed,
-} from "../src/components/CommitGraph";
+} from "../src/components/commitGraphGeometry";
 import {
   ALL_GRAPH_COLUMNS,
   COMPACT_GRAPH_COLUMN_WIDTHS,

@@ -2,7 +2,7 @@ import { Copy, Download, ExternalLink, GitBranchPlus, GitCommitHorizontal, GitMe
 import { PencilFilled } from "../components/ui/PencilFilled";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction, } from "react";
 
-import { primaryBranchDecoration } from "../components/CommitGraph";
+import { primaryBranchDecoration } from "../components/commitRefs";
 import type { ContextAction } from "../components/ContextMenu";
 import { branchNameWithoutRemote, remoteNameOf, type BranchScope } from "../components/ref-sidebar";
 import type { ToastMessage } from "../components/ToastRegion";

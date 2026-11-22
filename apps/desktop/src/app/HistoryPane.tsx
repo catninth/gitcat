@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { CommitGraph, type CommitContextMenuRequest } from "../components/CommitGraph";
 import {
-    CommitGraph,
     getCommitGraphLastLaneX,
     getCommitGraphMaxX,
     getCommitGraphOverflowEdge,
-    type CommitContextMenuRequest,
-} from "../components/CommitGraph";
+} from "../components/commitGraphGeometry";
 import { GraphColumnResizer } from "../components/GraphColumnResizer";
 import { GraphConflictNotice } from "../components/GraphConflictNotice";
 import { ConflictDecisionBar, MergeEditor, SubmoduleConflictView } from "../components/conflict";
