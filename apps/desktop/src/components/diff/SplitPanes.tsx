@@ -48,7 +48,7 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
 
             return (
               <tr
-                className={`gc-diff-line gc-diff-line--${rowKind}`}
+                className={`gc-diff-line gc-diff-line--${rowKind}${line ? "" : " gc-diff-line--empty"}`}
                 key={`line:${rowIndex}`}
                 onContextMenu={lineMenuHandler(actions, line)}
               >

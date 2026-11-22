@@ -829,8 +829,25 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--gc-danger) 45%, transparent);
 }
 
-.gc-diff-line__content--empty {
-  background: color-mix(in srgb, var(--gc-surface) 45%, transparent);
+/*
+ * A row that exists only on the other side of a split diff. The hatch is painted on
+ * the row, not the cells, so the stripes run unbroken from gutter to content; the
+ * 10px tile divides the 20px row height, so they also continue across rows.
+ */
+.gc-diff-line--empty {
+  background-color: color-mix(in srgb, var(--gc-surface) 45%, transparent);
+  background-image: linear-gradient(
+    135deg,
+    transparent calc(50% - 0.75px),
+    color-mix(in srgb, var(--gc-muted) 30%, transparent) calc(50% - 0.75px) calc(50% + 0.75px),
+    transparent calc(50% + 0.75px)
+  );
+  background-size: 10px 10px;
+}
+
+.gc-diff-line--empty .gc-diff-line__number,
+.gc-diff-line--empty .gc-diff-line__content {
+  background: transparent;
 }
 
 .gc-diff-table--side {
