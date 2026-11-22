@@ -1,4 +1,3 @@
-import { createDemoGitCatApi } from "./demo";
 import { getGitCatRuntime, invokeTauri } from "./platform";
 import type {
   AppMetadata,
@@ -442,7 +441,34 @@ export function getApiError(value: unknown): ApiError {
   return { code: "internal", message: String(value) };
 }
 
+/**
+ * The in-browser demo, loaded on its first call. The desktop build never makes
+ * one, so keeping it out of the entry chunk keeps its seed repository and its
+ * whole fake backend out of what the window has to parse at startup.
+ *
+ * Every member of `GitCatApi` except `runtime` is an async method, which is what
+ * lets a call simply wait for the module.
+ */
+function createLazyDemoGitCatApi(): GitCatApi {
+  let demo: Promise<GitCatApi> | null = null;
+  const load = () => (demo ??= import("./demo").then((module) => module.createDemoGitCatApi()));
+  return new Proxy({} as GitCatApi, {
+    get(_target, property) {
+      if (property === "runtime") return "browser";
+      // Not a thenable: awaiting the API object itself must not call into it.
+      if (typeof property !== "string" || property === "then") return undefined;
+      return (...args: unknown[]) =>
+        load().then((api) => {
+          const method = api[property as keyof GitCatApi] as unknown as (
+            ...methodArgs: unknown[]
+          ) => unknown;
+          return method.apply(api, args);
+        });
+    },
+  });
+}
+
 export const gitcatApi: GitCatApi =
-  getGitCatRuntime() === "tauri" ? createTauriGitCatApi() : createDemoGitCatApi();
+  getGitCatRuntime() === "tauri" ? createTauriGitCatApi() : createLazyDemoGitCatApi();
 
 export const api = gitcatApi;
