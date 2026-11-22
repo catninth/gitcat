@@ -3627,7 +3627,6 @@ fn resolve_stash_index(stashes: Vec<StashEntry>, oid: &str) -> ApiResult<usize> 
 }
 
 #[cfg(test)]
-#[path = "backend/tests.rs"]
 mod tests;
 
 /// The host a password would be sent to, which only exists for the transports
