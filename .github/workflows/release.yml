@@ -17,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  # The prepare job asks whether core-ci already passed on this commit.
+  actions: read
 
 concurrency:
   group: release-${{ github.event_name }}-${{ github.ref }}
@@ -37,8 +39,12 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       publish: ${{ steps.plan.outputs.publish }}
       skip: ${{ steps.plan.outputs.skip }}
+      verified: ${{ steps.gate.outputs.verified }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Enough history to walk back over version-bump commits.
+          fetch-depth: 10
       - name: Plan the release
         id: plan
         env:
@@ -76,21 +82,66 @@ jobs:
             echo "publish=$publish"
             echo "skip=$skip"
           } | tee -a "$GITHUB_OUTPUT"
+      # fmt, clippy and the test suites already ran in core-ci for this commit
+      # on both platforms. Building the release does not repeat them; when no
+      # passing core-ci run exists, the `verify` job runs it here instead.
+      - name: Find a passing core-ci run
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$GITHUB_SHA
+          # A version bump is committed with [skip ci], so core-ci never runs
+          # on it. Step over such commits only while they touch nothing but
+          # version manifests; any other change has to be verified itself.
+          for _ in 1 2 3 4 5; do
+            subject=$(git log -1 --format=%s "$sha")
+            case "$subject" in *"[skip ci]"*) ;; *) break ;; esac
+            changed=$(git diff --name-only "$sha^" "$sha")
+            if grep -qvE '^(Cargo\.toml|Cargo\.lock|apps/desktop/package(-lock)?\.json)$' <<< "$changed"; then
+              break
+            fi
+            sha=$(git rev-parse "$sha^")
+          done
+          runs="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs"
+          passed=$(gh api "$runs?head_sha=$sha&status=success&per_page=1" --jq '.total_count' || echo 0)
+          if [ "$passed" -gt 0 ]; then
+            echo "core-ci passed on $sha; skipping re-verification."
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No passing core-ci run for $sha; verifying in this run."
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  verify:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true' && needs.prepare.outputs.verified != 'true'
+    uses: ./.github/workflows/ci.yml
 
   build-windows:
-    needs: prepare
-    if: needs.prepare.outputs.skip != 'true'
+    needs: [prepare, verify]
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.skip != 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-windows
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/tauri
+          key: tauri-tools-windows-${{ hashFiles('apps/desktop/package-lock.json') }}
       - name: Verify MSVC target
         shell: pwsh
         run: |
@@ -101,15 +152,8 @@ jobs:
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
-      - name: Format
-        run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
-        run: cargo test --workspace
-      - name: Verify frontend
-        working-directory: apps/desktop
-        run: npm run typecheck
+      # `tauri build` runs `npm run build`, whose prebuild step runs the
+      # frontend tests and whose build step type-checks; no separate pass.
       - name: Build NSIS installer
         working-directory: apps/desktop
         env:
@@ -169,21 +213,31 @@ jobs:
             target/release/gitcat-desktop.exe
 
   build-linux:
-    needs: prepare
-    if: needs.prepare.outputs.skip != 'true'
+    needs: [prepare, verify]
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.skip != 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     # Pinned on purpose: the AppImage inherits this image's glibc as its
     # minimum supported baseline, so bumping it is a compatibility decision.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
+      - uses: rui314/setup-mold@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-linux
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tauri
+          key: tauri-tools-linux-${{ hashFiles('apps/desktop/package-lock.json') }}
       - name: Verify GNU target
         run: |
           host=$(rustc -vV | sed -n 's/^host: //p')
@@ -200,15 +254,8 @@ jobs:
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
-      - name: Format
-        run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
-        run: cargo test --workspace
-      - name: Verify frontend
-        working-directory: apps/desktop
-        run: npm run typecheck
+      # `tauri build` runs `npm run build`, whose prebuild step runs the
+      # frontend tests and whose build step type-checks; no separate pass.
       - name: Build AppImage, deb, and rpm
         working-directory: apps/desktop
         env:

@@ -3,9 +3,25 @@ name: core-ci
 on:
   push:
   pull_request:
+  # The release workflow calls this when the commit it builds has no
+  # successful core-ci run of its own yet.
+  workflow_call:
 
 permissions:
   contents: read
+
+# A newer push to the same branch makes an older run's answer moot. `main` is
+# never cancelled, so every commit there keeps a result the release gate can
+# find.
+concurrency:
+  group: core-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_dispatch' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Tests only need line numbers in backtraces; full debuginfo makes every
+  # test binary bigger and slower to link and to cache.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   test-frontend:
@@ -31,6 +47,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-windows
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
@@ -45,6 +65,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: rui314/setup-mold@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install Tauri Linux prerequisites
         run: |
           sudo apt-get update
