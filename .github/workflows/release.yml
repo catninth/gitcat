@@ -121,8 +121,10 @@ jobs:
 
   build-windows:
     needs: [prepare, verify]
+    # `!cancelled()` rather than `always()`: it lets a skipped verify through
+    # without ignoring a cancelled run.
     if: >-
-      always() && needs.prepare.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' &&
       needs.prepare.outputs.skip != 'true' &&
       (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
@@ -215,7 +217,7 @@ jobs:
   build-linux:
     needs: [prepare, verify]
     if: >-
-      always() && needs.prepare.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' &&
       needs.prepare.outputs.skip != 'true' &&
       (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     # Pinned on purpose: the AppImage inherits this image's glibc as its
@@ -335,7 +337,13 @@ jobs:
 
   publish:
     needs: [prepare, build-windows, build-linux]
-    if: needs.prepare.outputs.publish == 'true'
+    # A skipped `verify` (core-ci already passed) skips every job downstream of
+    # it unless the condition carries its own status check, so the plain
+    # implicit success() would skip publishing on every gated run.
+    if: >-
+      !cancelled() && needs.prepare.outputs.publish == 'true' &&
+      needs.build-windows.result == 'success' &&
+      needs.build-linux.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v7
