@@ -831,10 +831,11 @@
 
 /*
  * A row that exists only on the other side of a split diff. The hatch is painted on
- * the row, not the cells, so the stripes run unbroken from gutter to content; the
- * 10px tile divides the 20px row height, so they also continue across rows.
+ * the content cell only, so the line-number gutter stays plain (as in GitKraken).
+ * Every content cell in a column starts at the same x, and the 10px tile divides
+ * the 20px row height, so the stripes still continue unbroken across rows.
  */
-.gc-diff-line--empty {
+.gc-diff-line--empty .gc-diff-line__content {
   background-color: color-mix(in srgb, var(--gc-surface) 45%, transparent);
   background-image: linear-gradient(
     135deg,
@@ -843,11 +844,6 @@
     transparent calc(50% + 0.75px)
   );
   background-size: 10px 10px;
-}
-
-.gc-diff-line--empty .gc-diff-line__number,
-.gc-diff-line--empty .gc-diff-line__content {
-  background: transparent;
 }
 
 .gc-diff-table--side {
