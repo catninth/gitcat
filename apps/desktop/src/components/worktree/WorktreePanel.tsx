@@ -328,17 +328,32 @@ export function WorktreePanel({
     setFolderMenu(null);
   };
 
+  // The message is locked only while it is being committed. Staging or any
+  // other mutation leaves it editable: it is not what those commands read.
+  const [committing, setCommitting] = useState(false);
+
   const submit = async () => {
-    if (!canCommit) return;
-    if (await onCommit(buildCommitMessage(draft), draft.amend, draft.signoff)) {
-      onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
+    if (!canCommit || committing) return;
+    setCommitting(true);
+    try {
+      if (await onCommit(buildCommitMessage(draft), draft.amend, draft.signoff)) {
+        onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
+      }
+    } finally {
+      setCommitting(false);
     }
   };
 
   const continueOperation = async () => {
+    if (committing) return;
     const message = buildCommitMessage(draft);
-    if (await onContinueOperation(message || null)) {
-      onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
+    setCommitting(true);
+    try {
+      if (await onContinueOperation(message || null)) {
+        onDraftChange({ ...draft, message: "", description: "", amend: false, prefilledFrom: undefined });
+      }
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -449,8 +464,8 @@ export function WorktreePanel({
             stagedCount={staged.length}
           />
         ) : undefined}
-        busy={busy}
         canCommit={canCommit}
+        committing={committing}
         commitKeybind={commitKeybind}
         draft={draft}
         notice={operation === "rebase" && operationProgress

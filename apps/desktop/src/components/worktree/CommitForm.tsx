@@ -51,8 +51,8 @@ function SummaryCounter({ remaining }: { remaining: number }) {
 
 export function CommitForm({
   actions,
-  busy,
   canCommit,
+  committing,
   commitKeybind,
   draft,
   notice,
@@ -63,8 +63,9 @@ export function CommitForm({
 }: {
   /** Replaces the commit button while an operation decides what pressing it means. */
   actions?: ReactNode;
-  busy: boolean;
   canCommit: boolean;
+  /** Locks the message while it is being committed, and only then. */
+  committing: boolean;
   commitKeybind: string;
   draft: CommitDraft;
   /** A line above the message that is about the operation, not part of the message. */
@@ -84,7 +85,7 @@ export function CommitForm({
       <div className="relative">
         <Input
           className={cx(FIELD, "py-1.75 pl-2.25 pr-10")}
-          disabled={busy}
+          disabled={committing}
           id="commit-message"
           onChange={(event) => onDraftChange({ ...draft, message: event.target.value })}
           onKeyDown={(event) => {
@@ -108,7 +109,7 @@ export function CommitForm({
       </div>
       <TextArea
         className={cx(FIELD, "h-21 min-h-21 flex-[0_0_auto] resize-none px-2.25 py-1.5")}
-        disabled={busy}
+        disabled={committing}
         id="commit-description"
         onChange={(event) => onDraftChange({ ...draft, description: event.target.value })}
         onKeyDown={(event) => {
@@ -127,7 +128,7 @@ export function CommitForm({
           <input
             checked={draft.amend}
             className="accent-accent"
-            disabled={busy}
+            disabled={committing}
             onChange={(event) => onDraftChange({ ...draft, amend: event.target.checked })}
             type="checkbox"
           />
@@ -137,7 +138,7 @@ export function CommitForm({
           <input
             checked={draft.signoff}
             className="accent-accent"
-            disabled={busy}
+            disabled={committing}
             onChange={(event) => onDraftChange({ ...draft, signoff: event.target.checked })}
             type="checkbox"
           />
