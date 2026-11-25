@@ -1,10 +1,16 @@
 import type { DiffHunk, DiffLine } from "../../lib/types";
 import type { DiffViewMode } from "./DiffParts";
-import { hunkParts } from "./intraline";
+import { alignBlock, hunkParts } from "./intraline";
 
 export interface SplitRow {
   left: DiffLine | null;
   right: DiffLine | null;
+  /**
+   * The row belongs to a change block. Its lines are shown as removed (left)
+   * and added (right) even when one is a short unchanged gap the block
+   * absorbed; that line keeps its `context` kind, so it offers no line action.
+   */
+  change: boolean;
 }
 
 export type MarkKind = "addition" | "deletion" | "change";
@@ -27,15 +33,11 @@ export function toSplitRows(lines: readonly DiffLine[]): SplitRow[] {
 
   for (const part of hunkParts(lines)) {
     if (part.kind === "context") {
-      rows.push({ left: part.line, right: part.line });
+      rows.push({ left: part.line, right: part.line, change: false });
       continue;
     }
 
-    const { deletions, additions } = part.block;
-    const rowCount = Math.max(deletions.length, additions.length);
-    for (let pairIndex = 0; pairIndex < rowCount; pairIndex += 1) {
-      rows.push({ left: deletions[pairIndex] ?? null, right: additions[pairIndex] ?? null });
-    }
+    for (const [left, right] of alignBlock(part.block)) rows.push({ left, right, change: true });
   }
 
   return rows;
@@ -85,8 +87,8 @@ function rowKinds(hunks: readonly DiffHunk[], mode: DiffViewMode): (MarkKind | n
   for (const hunk of hunks) {
     if (mode === "split") {
       for (const row of toSplitRows(hunk.lines)) {
-        const removed = row.left?.kind === "deletion";
-        const added = row.right?.kind === "addition";
+        const removed = row.change && row.left !== null;
+        const added = row.change && row.right !== null;
         kinds.push(removed && added ? "change" : removed ? "deletion" : added ? "addition" : null);
       }
       continue;

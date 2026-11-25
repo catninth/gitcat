@@ -31,7 +31,9 @@ export function displayLineNumber(value: number | null): string {
   return value === null ? "" : String(value);
 }
 
-export function LineContent({ line }: { line: DiffLine }) {
+// `kind` overrides the prefix only, for a context line the split view shows
+// inside a change block.
+export function LineContent({ line, kind = line.kind }: { kind?: DiffLine["kind"]; line: DiffLine }) {
   const tokens = useHighlightedLine(line);
   const changes = useLineChanges(line);
   const plain = tokens === null && changes === undefined;
@@ -39,7 +41,7 @@ export function LineContent({ line }: { line: DiffLine }) {
   return (
     <>
       <span aria-hidden="true" className="gc-diff-line__prefix">
-        {linePrefix(line.kind)}
+        {linePrefix(kind)}
       </span>
       <code className="gc-diff-line__code">
         {plain

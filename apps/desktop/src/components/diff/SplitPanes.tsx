@@ -41,10 +41,9 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
           {rows.map((row, rowIndex) => {
             const line = side === "old" ? row.left : row.right;
             const number = side === "old" ? line?.old_line : line?.new_line;
-            const rowKind = row.left?.kind === "deletion" || row.right?.kind === "addition"
-              ? "change"
-              : "context";
-            const kindClass = line ? ` gc-diff-line__content--${line.kind}` : " gc-diff-line__content--empty";
+            const rowKind = row.change ? "change" : "context";
+            const shownKind = row.change ? (side === "old" ? "deletion" : "addition") : line?.kind;
+            const kindClass = line ? ` gc-diff-line__content--${shownKind}` : " gc-diff-line__content--empty";
 
             return (
               <tr
@@ -60,7 +59,7 @@ const SideHunk = memo(function SideHunk({ hunk, index, rows, showHeader, side }:
                   {displayLineNumber(number ?? null)}
                 </td>
                 <td className={`gc-diff-line__content gc-diff-line__content--${side}${kindClass}`}>
-                  {line ? <LineContent line={line} /> : null}
+                  {line ? <LineContent kind={shownKind} line={line} /> : null}
                 </td>
               </tr>
             );
