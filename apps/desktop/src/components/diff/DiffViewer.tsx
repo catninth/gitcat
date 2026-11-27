@@ -192,7 +192,7 @@ export function DiffViewer({
       {diff.binary ? (
         <DiffState>Binary file. Text preview is unavailable.</DiffState>
       ) : diff.hunks.length === 0 ? (
-        <DiffState>No text changes to display.</DiffState>
+        <DiffState>{renamed ? "File contents are unchanged." : "No text changes to display."}</DiffState>
       ) : (
         <HighlightContext.Provider value={highlight}>
         <IntralineContext.Provider value={intraline}>

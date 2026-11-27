@@ -207,6 +207,8 @@ impl GitCliBackend {
             .len()
             .try_into()
             .unwrap_or(u32::MAX);
+        self.apply_worktree_renames(path, &mut parsed_status.status)
+            .await;
         self.apply_line_stats(path, &mut parsed_status.status)
             .await?;
         let refs = parse_refs(&refs_output)?;

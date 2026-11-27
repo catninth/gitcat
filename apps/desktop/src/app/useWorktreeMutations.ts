@@ -8,7 +8,13 @@ import type { FileViewMode, HistoryPage, RepositorySnapshot } from "../lib/types
 import { createMutationQueue } from "./mutationQueue";
 import { expectedState, isMutationResult } from "./snapshot";
 import type { CenterView, RuntimeRepository } from "./state";
-import { nextWorktreeSelection, optimisticWorktreeSelection, optimisticWorktreeSnapshot, type WorktreeStageAction } from "./worktree";
+import {
+    nextWorktreeSelection,
+    optimisticWorktreeSelection,
+    optimisticWorktreeSnapshot,
+    withRenameSources,
+    type WorktreeStageAction,
+} from "./worktree";
 
 export interface WorktreeMutationsParams {
     activeRepository: RuntimeRepository | undefined;
@@ -197,10 +203,11 @@ export function useWorktreeMutations({
         if (collapse) setStageCollapse((current) => ({ target: collapse, staged: true, token: (current?.token ?? 0) + 1 }));
         const followUp = worktreeDiffFollowUp("stage", paths);
         const crossed = followUp?.staged === true;
+        const withSources = withRenameSources(snapshot?.status.entries ?? [], paths, false);
         if (followUp && !crossed) openWorktreeDiffRef.current(followUp.path, followUp.staged);
         void runMutation(
             "Files staged",
-            (repository) => gitcatApi.stagePaths(repository.repository_id, paths),
+            (repository) => gitcatApi.stagePaths(repository.repository_id, withSources),
             {
                 silent: true,
                 optimistic: () => applyOptimisticWorktreeMutation("stage", paths, followUp),
@@ -208,16 +215,17 @@ export function useWorktreeMutations({
         ).then((done) => {
             if (done && followUp && crossed) swapWorktreeDiffSideRef.current(followUp.path, followUp.staged);
         });
-    }, [applyOptimisticWorktreeMutation, runMutation, worktreeDiffFollowUp]);
+    }, [applyOptimisticWorktreeMutation, runMutation, snapshot, worktreeDiffFollowUp]);
 
     const unstagePaths = useCallback((paths: string[], collapse?: FolderCollapseTarget) => {
         if (collapse) setStageCollapse((current) => ({ target: collapse, staged: false, token: (current?.token ?? 0) + 1 }));
         const followUp = worktreeDiffFollowUp("unstage", paths);
         const crossed = followUp?.staged === false;
+        const withSources = withRenameSources(snapshot?.status.entries ?? [], paths, true);
         if (followUp && !crossed) openWorktreeDiffRef.current(followUp.path, followUp.staged);
         void runMutation(
             "Files unstaged",
-            (repository) => gitcatApi.unstagePaths(repository.repository_id, paths),
+            (repository) => gitcatApi.unstagePaths(repository.repository_id, withSources),
             {
                 silent: true,
                 optimistic: () => applyOptimisticWorktreeMutation("unstage", paths, followUp),
@@ -225,7 +233,7 @@ export function useWorktreeMutations({
         ).then((done) => {
             if (done && followUp && crossed) swapWorktreeDiffSideRef.current(followUp.path, followUp.staged);
         });
-    }, [applyOptimisticWorktreeMutation, runMutation, worktreeDiffFollowUp]);
+    }, [applyOptimisticWorktreeMutation, runMutation, snapshot, worktreeDiffFollowUp]);
 
     const createPatchFile = useCallback(async (paths: string[], staged: boolean) => {
         if (!activeRepository) return;

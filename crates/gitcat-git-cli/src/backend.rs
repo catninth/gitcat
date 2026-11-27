@@ -26,10 +26,10 @@ use crate::{
     line_patch::{PatchDirection, build_line_patch},
     operation::{ensure_operation, operation_message_file, operation_state_from_git_dir},
     parse::{
-        DETAIL_FORMAT, LOG_FORMAT, ParsedStatus, REF_FORMAT, STASH_GRAPH_FORMAT, StashCommit,
-        StashGraph, parse_changed_files, parse_commit_details, parse_file_diff, parse_git_version,
-        parse_line_stats, parse_log, parse_name_status, parse_refs, parse_search_hits,
-        parse_stash_graph, parse_status,
+        DETAIL_FORMAT, DetectedRename, LOG_FORMAT, ParsedStatus, REF_FORMAT, STASH_GRAPH_FORMAT,
+        StashCommit, StashGraph, merge_worktree_renames, parse_changed_files, parse_commit_details,
+        parse_file_diff, parse_git_version, parse_line_stats, parse_log, parse_name_status,
+        parse_numstat_renames, parse_refs, parse_search_hits, parse_stash_graph, parse_status,
     },
     runner::{GitCommandOutput, GitRunOptions, GitRunner, os_args, redact_sensitive},
     validate::{
@@ -49,6 +49,7 @@ mod conflicts;
 mod history;
 mod operations;
 mod remotes;
+mod renames;
 mod repository;
 mod stash;
 mod worktree;

@@ -580,6 +580,7 @@ fn rejects_unbounded_ui_queries_before_backend_dispatch() {
         ignore_whitespace: false,
         max_bytes: 1024,
         whole_file: false,
+        old_path: None,
     };
     assert_eq!(
         validate_diff_request(&unsafe_diff).unwrap_err().code,

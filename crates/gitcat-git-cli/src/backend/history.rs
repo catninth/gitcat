@@ -528,11 +528,23 @@ impl GitCliBackend {
         request: &DiffRequest,
     ) -> ApiResult<FileDiff> {
         validate_relative_path(&request.path)?;
+        let old_path = request
+            .old_path
+            .as_deref()
+            .filter(|old_path| *old_path != request.path);
+        if let Some(old_path) = old_path {
+            validate_relative_path(old_path)?;
+        }
         if matches!(
             request.target,
             DiffTarget::Worktree | DiffTarget::HeadToWorktree
         ) && self.is_untracked_file(path, &request.path).await?
         {
+            if let (Some(old_path), DiffTarget::Worktree) = (old_path, &request.target) {
+                if let Some(diff) = self.worktree_rename_diff(path, request, old_path).await? {
+                    return Ok(diff);
+                }
+            }
             return self.untracked_diff(path, request).await;
         }
         let mut args = match &request.target {
@@ -590,26 +602,41 @@ impl GitCliBackend {
                 self.resolve_commit(path, head_oid).await?.into(),
             ],
         };
-        let mut name_args = args.clone();
-        name_args.extend(os_args(&[
-            "--name-status",
-            "-z",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--",
-        ]));
-        name_args.push(request.path.as_str().into());
-        let names = self.read(Some(path), name_args).await?;
-        let selected = parse_name_status(&names.stdout)?;
-        // An unmerged path is reported once per stage, so the same path landing
-        // here twice is expected. Only a foreign path means the request widened
-        // past the single file the pane asked for.
-        if selected.iter().any(|file| file.new_path != request.path) {
-            return Err(ApiError::new(
-                ErrorCode::InvalidRequest,
-                "Diff request must select exactly one changed file",
-            ));
-        }
+        // A rename is diffed against the path it came from. When Git no longer
+        // pairs the two (the file changed past the similarity threshold since
+        // the pane was opened), the new path is shown on its own instead.
+        let mut rename_source = old_path;
+        let selected = loop {
+            let mut name_args = args.clone();
+            if rename_source.is_some() {
+                name_args.push("-M".into());
+            }
+            name_args.extend(os_args(&[
+                "--name-status",
+                "-z",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--",
+            ]));
+            if let Some(old_path) = rename_source {
+                name_args.push(old_path.into());
+            }
+            name_args.push(request.path.as_str().into());
+            let names = self.read(Some(path), name_args).await?;
+            let selected = parse_name_status(&names.stdout)?;
+            // An unmerged path is reported once per stage, so the same path
+            // landing here twice is expected. Only a foreign path means the
+            // request widened past the single file the pane asked for.
+            if selected.iter().all(|file| file.new_path == request.path) {
+                break selected;
+            }
+            if rename_source.take().is_none() {
+                return Err(ApiError::new(
+                    ErrorCode::InvalidRequest,
+                    "Diff request must select exactly one changed file",
+                ));
+            }
+        };
         // Git answers an unmerged worktree path with a combined diff the patch
         // parser cannot read. Ask for the stage-2 side instead, so the pane
         // shows the conflicted working copy against "ours".
@@ -630,7 +657,13 @@ impl GitCliBackend {
         if request.ignore_whitespace {
             args.push("--ignore-all-space".into());
         }
+        if rename_source.is_some() {
+            args.push("-M".into());
+        }
         args.push("--".into());
+        if let Some(old_path) = rename_source {
+            args.push(old_path.into());
+        }
         args.push(request.path.as_str().into());
         let mut options = GitRunOptions::read_only(request.max_bytes.clamp(1, MAX_DIFF_BYTES));
         options.allow_stdout_truncation = true;

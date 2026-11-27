@@ -13,6 +13,7 @@ import type {
 } from "../lib/types";
 import { currentBranch } from "./branches";
 import type { CommitDetailsPanel, RunMutation, RuntimeRepository } from "./state";
+import { withAllRenameSources } from "./worktree";
 
 export interface InspectorPaneProps {
     abortActiveOperation: () => void;
@@ -115,9 +116,16 @@ export function InspectorPane({
                 onUnstage={unstagePaths}
                 onDiscard={(paths) => {
                     if (!window.confirm(`Discard all changes to ${paths.length === 1 ? paths[0] : `${paths.length} files`}? This cannot be undone.`)) return;
-                    void runMutation("Changes discarded", (repository) => gitcatApi.discardPaths(repository.repository_id, paths));
+                    void runMutation("Changes discarded", (repository) => gitcatApi.discardPaths(
+                        repository.repository_id,
+                        withAllRenameSources(snapshot.status.entries, paths),
+                    ));
                 }}
-                onStashFile={(paths) => void runMutation("File stashed", (repository) => gitcatApi.stashFile(repository.repository_id, paths, null))}
+                onStashFile={(paths) => void runMutation("File stashed", (repository) => gitcatApi.stashFile(
+                    repository.repository_id,
+                    withAllRenameSources(snapshot.status.entries, paths),
+                    null,
+                ))}
                 onIgnore={(patterns) => void runMutation("Updated .gitignore", (repository) => gitcatApi.appendGitignore(repository.repository_id, patterns))}
                 onCreatePatch={(paths, staged) => void createPatchFile(paths, staged)}
                 onOpenFolder={(path) => {

@@ -41,6 +41,7 @@ async fn whole_file_diff_keeps_every_line_as_context() {
         ignore_whitespace: false,
         max_bytes: 1024 * 1024,
         whole_file,
+        old_path: None,
     };
 
     let hunked = backend
@@ -74,6 +75,7 @@ async fn conflicted_worktree_file_diffs_against_the_ours_stage() {
                 ignore_whitespace: false,
                 max_bytes: 1024 * 1024,
                 whole_file: false,
+                old_path: None,
             },
         )
         .await
@@ -104,6 +106,7 @@ async fn worktree_diff_branch_and_stash_workflow() {
                 ignore_whitespace: false,
                 max_bytes: 1024 * 1024,
                 whole_file: false,
+                old_path: None,
             },
         )
         .await
@@ -120,6 +123,7 @@ async fn worktree_diff_branch_and_stash_workflow() {
                 ignore_whitespace: false,
                 max_bytes: 1024 * 1024,
                 whole_file: false,
+                old_path: None,
             },
         )
         .await
@@ -180,6 +184,7 @@ async fn worktree_diff_reports_untracked_file_contents() {
                 ignore_whitespace: false,
                 max_bytes: 1024 * 1024,
                 whole_file: false,
+                old_path: None,
             },
         )
         .await
@@ -310,6 +315,7 @@ fn worktree_diff_request(path: &str, target: DiffTarget) -> DiffRequest {
         ignore_whitespace: false,
         max_bytes: 1 << 20,
         whole_file: false,
+        old_path: None,
     }
 }
 

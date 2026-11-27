@@ -273,4 +273,44 @@ mod tests {
         assert_eq!(files[1].old_path.as_deref(), Some("old.rs"));
         assert_eq!(files[1].additions, Some(1));
     }
+
+    #[test]
+    fn numstat_renames_keep_only_paired_records() {
+        let renames =
+            parse_numstat_renames(b"1	0	 old.rs new.rs 3	1	other.rs -	-	 a.png b.png ").unwrap();
+        assert_eq!(renames.len(), 2);
+        assert_eq!(renames[0].old_path, "old.rs");
+        assert_eq!(renames[0].new_path, "new.rs");
+        assert_eq!(
+            renames[0].stats,
+            Some(LineStats {
+                additions: 1,
+                deletions: 0
+            })
+        );
+        assert_eq!(renames[1].stats, None);
+    }
+
+    #[test]
+    fn worktree_rename_keeps_a_source_that_still_has_a_staged_change() {
+        let mut status = parse_status(
+            b"1 MD N... 100644 100644 000000 aaaaaaa bbbbbbb old.rs ? new.rs ? alone.rs ",
+        )
+        .unwrap()
+        .status;
+        merge_worktree_renames(
+            &mut status,
+            &[DetectedRename {
+                old_path: "old.rs".into(),
+                new_path: "new.rs".into(),
+                stats: None,
+            }],
+        );
+        assert_eq!(status.entries.len(), 3);
+        assert_eq!(status.entries[0].index, Some(ChangeKind::Modified));
+        assert_eq!(status.entries[0].worktree, None);
+        assert_eq!(status.entries[1].worktree, Some(ChangeKind::Renamed));
+        assert_eq!(status.entries[1].old_path.as_deref(), Some("old.rs"));
+        assert_eq!(status.entries[2].worktree, Some(ChangeKind::Untracked));
+    }
 }

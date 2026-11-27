@@ -21,7 +21,7 @@ export interface DiffLineActionsParams {
 
 /**
  * Line actions for the open worktree diff, or null where there are none: a
- * commit diff, or a conflicted file whose diff is drawn against "ours".
+ * commit diff, a conflicted file whose diff is drawn against "ours", or a rename.
  *
  * Staging a line moves the line numbers of everything after it, so the
  * actions stay busy until the diff has been read again; a second click on
@@ -53,7 +53,9 @@ export function useDiffLineActions({
         path && snapshot?.status.entries.find((entry) => entry.path === path)?.conflicted,
     );
     const side = selectedWorktreeFile?.staged ? "staged" : "unstaged";
-    const available = Boolean(path && diff?.new_path === path && !conflicted);
+    // A rename moves whole files; like GitKraken, it is staged or discarded as a pair.
+    const renamed = diff?.status === "renamed";
+    const available = Boolean(path && diff?.new_path === path && !conflicted && !renamed);
 
     return useMemo(
         () => (available ? { side, busy, onApply } : null),

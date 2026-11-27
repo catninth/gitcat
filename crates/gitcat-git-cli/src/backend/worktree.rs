@@ -246,10 +246,11 @@ impl GitCliBackend {
         )?;
         for entry in &mut status.entries {
             entry.index_stats = index.get(&entry.path).copied();
-            entry.worktree_stats = if matches!(entry.worktree, Some(ChangeKind::Untracked)) {
-                new_files.get(&entry.path).copied()
-            } else {
-                worktree.get(&entry.path).copied()
+            entry.worktree_stats = match entry.worktree {
+                Some(ChangeKind::Untracked) => new_files.get(&entry.path).copied(),
+                // Counted against the path it came from when the rename was found.
+                Some(ChangeKind::Renamed) => entry.worktree_stats,
+                _ => worktree.get(&entry.path).copied(),
             };
         }
         Ok(())

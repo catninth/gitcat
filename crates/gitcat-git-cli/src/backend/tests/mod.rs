@@ -16,6 +16,7 @@ mod conflicts;
 mod history;
 mod operations;
 mod remotes;
+mod renames;
 mod worktree;
 
 fn git(path: &Path, args: &[&str]) {

@@ -467,6 +467,8 @@ export interface DiffRequest {
   ignore_whitespace: boolean;
   max_bytes: number;
   whole_file: boolean;
+  /** Where a renamed file came from; without it the new path reads as added. */
+  old_path?: string;
 }
 
 export type DiffLineKind = "context" | "addition" | "deletion" | "no_newline";

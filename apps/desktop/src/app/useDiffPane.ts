@@ -5,6 +5,11 @@ import { gitcatApi } from "../lib/api";
 import { sameFileDiff } from "../lib/diffs";
 import type { ChangedFile, DiffRequest, FileDiff, RepositorySnapshot, StatusEntry } from "../lib/types";
 import type { CenterView, RuntimeRepository } from "./state";
+import { renameSource } from "./worktree";
+
+function statusEntry(snapshot: RepositorySnapshot | null, path: string): StatusEntry | undefined {
+    return snapshot?.status.entries.find((entry) => entry.path === path);
+}
 
 export interface DiffPaneParams {
     activeRepository: RuntimeRepository | undefined;
@@ -132,6 +137,7 @@ export function useDiffPane({
             ignore_whitespace: false,
             max_bytes: diffMaxBytes,
             whole_file: diffWholeFileRef.current,
+            old_path: file.status === "renamed" && file.old_path ? file.old_path : undefined,
         });
     }, [loadDiff, diffContextLines, diffMaxBytes, selectedOid]);
 
@@ -144,8 +150,9 @@ export function useDiffPane({
             ignore_whitespace: false,
             max_bytes: diffMaxBytes,
             whole_file: diffWholeFileRef.current,
+            old_path: renameSource(statusEntry(snapshot, path), staged),
         });
-    }, [loadDiff, diffContextLines, diffMaxBytes]);
+    }, [loadDiff, diffContextLines, diffMaxBytes, snapshot]);
 
     const openWorktreeDiff = useCallback((entry: StatusEntry, staged: boolean) => {
         openWorktreeFileDiff(entry.path, staged);
@@ -157,8 +164,12 @@ export function useDiffPane({
         const kind = open.request.target.kind;
         if (kind !== "worktree" && kind !== "staged") return;
         setSelectedWorktreeFile({ path, staged });
-        void loadDiff({ ...open.request, target: { kind: staged ? "staged" : "worktree" } }, true);
-    }, [loadDiff]);
+        void loadDiff({
+            ...open.request,
+            target: { kind: staged ? "staged" : "worktree" },
+            old_path: renameSource(statusEntry(snapshot, path), staged),
+        }, true);
+    }, [loadDiff, snapshot]);
 
     useEffect(() => {
         openWorktreeDiffRef.current = openWorktreeFileDiff;

@@ -20,6 +20,37 @@ export function wipChangeKind(entry: StatusEntry): ChangeKind | null {
     return kinds.find((kind) => kind === "added" || kind === "untracked" || kind === "copied") ?? kinds[0] ?? null;
 }
 
+/**
+ * The path a renamed row came from, on the side it is shown in. A staged
+ * rename names it in the index; an unstaged one pairs a deletion with an
+ * untracked file. A staged rename with further edits is "modified" on the
+ * unstaged side, so it has no source there.
+ */
+export function renameSource(entry: StatusEntry | undefined, staged: boolean): string | undefined {
+    if (!entry?.old_path) return undefined;
+    const kind = staged ? entry.index : entry.worktree;
+    return kind === "renamed" ? entry.old_path : undefined;
+}
+
+/**
+ * Adds the source path of every renamed row in `paths`. Git stages, unstages
+ * and discards a rename only as its two halves together; with the new path
+ * alone the deletion would stay behind on the other side.
+ */
+export function withRenameSources(entries: StatusEntry[], paths: string[], staged: boolean): string[] {
+    const selected = new Set(paths);
+    const sources = entries
+        .filter((entry) => selected.has(entry.path))
+        .map((entry) => renameSource(entry, staged))
+        .filter((source): source is string => Boolean(source) && !selected.has(source!));
+    return sources.length ? [...paths, ...new Set(sources)] : paths;
+}
+
+/** `withRenameSources` for both sides, for actions that take a file whole. */
+export function withAllRenameSources(entries: StatusEntry[], paths: string[]): string[] {
+    return withRenameSources(entries, withRenameSources(entries, paths, false), true);
+}
+
 export function matchesStatusPath(entry: StatusEntry, paths: Set<string>): boolean {
     return paths.has(entry.path) || (entry.old_path ? paths.has(entry.old_path) : false);
 }
@@ -49,10 +80,15 @@ export function optimisticWorktreeSnapshot(
         }
 
         if (!entry.index) return entry;
+        // Unstaging both halves of a rename leaves the deletion and the
+        // untracked file, which the next status pairs again as an unstaged
+        // rename, edits included.
+        if (entry.index === "renamed") {
+            return { ...entry, index: undefined, worktree: "renamed" };
+        }
         return {
             ...entry,
             index: undefined,
-            old_path: entry.index === "renamed" ? undefined : entry.old_path,
             worktree: entry.worktree ?? worktreeKindFromIndex(entry.index),
         };
     }));

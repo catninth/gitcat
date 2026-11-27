@@ -297,6 +297,7 @@ async fn shared_stash_index_parent_uses_oldest_label_and_newest_action() {
                     ignore_whitespace: false,
                     max_bytes: 1024 * 1024,
                     whole_file: false,
+                    old_path: None,
                 },
             )
             .await
@@ -933,6 +934,7 @@ async fn stash_details_and_diff_compare_the_base_to_the_outer_stash() {
                 ignore_whitespace: false,
                 max_bytes: 1024 * 1024,
                 whole_file: false,
+                old_path: None,
             },
         )
         .await

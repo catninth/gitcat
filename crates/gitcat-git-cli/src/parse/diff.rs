@@ -126,6 +126,63 @@ pub(crate) fn parse_line_stats(output: &[u8]) -> ApiResult<HashMap<String, LineS
         .collect())
 }
 
+/// A deleted path Git paired with an added one, read from `--numstat -z -M`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DetectedRename {
+    pub old_path: String,
+    pub new_path: String,
+    pub stats: Option<LineStats>,
+}
+
+/// Only the renamed records of a `--numstat -z -M` listing; with `-z` a rename
+/// leaves the inline path empty and names both sides in the next two tokens.
+pub(crate) fn parse_numstat_renames(output: &[u8]) -> ApiResult<Vec<DetectedRename>> {
+    let tokens: Vec<&[u8]> = output
+        .split(|byte| *byte == 0)
+        .filter(|part| !part.is_empty())
+        .collect();
+    let mut renames = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = trim_line(tokens[index]);
+        index += 1;
+        let mut fields = token.splitn(3, |byte| *byte == b'\t');
+        let additions = fields
+            .next()
+            .ok_or_else(|| parse_error("Numstat additions missing"))?;
+        let deletions = fields
+            .next()
+            .ok_or_else(|| parse_error("Numstat deletions missing"))?;
+        let path = fields
+            .next()
+            .ok_or_else(|| parse_error("Numstat path missing"))?;
+        if !path.is_empty() {
+            continue;
+        }
+        let old = tokens
+            .get(index)
+            .ok_or_else(|| parse_error("Numstat rename source missing"))?;
+        let new = tokens
+            .get(index + 1)
+            .ok_or_else(|| parse_error("Numstat rename destination missing"))?;
+        index += 2;
+        let stats = text(additions)
+            .parse()
+            .ok()
+            .zip(text(deletions).parse().ok())
+            .map(|(additions, deletions)| LineStats {
+                additions,
+                deletions,
+            });
+        renames.push(DetectedRename {
+            old_path: text(old).into_owned(),
+            new_path: text(new).into_owned(),
+            stats,
+        });
+    }
+    Ok(renames)
+}
+
 pub(super) fn parse_numstat(output: &[u8]) -> ApiResult<HashMap<String, FileStats>> {
     let tokens: Vec<&[u8]> = output
         .split(|byte| *byte == 0)

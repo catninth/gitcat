@@ -117,6 +117,40 @@ pub(crate) fn parse_status(output: &[u8]) -> ApiResult<ParsedStatus> {
     })
 }
 
+/// Folds renames Git found between the index and the working tree into the
+/// status. Porcelain status pairs only staged paths, so an unstaged deletion
+/// and the untracked file it became arrive as two entries; GitKraken shows them
+/// as one renamed row, and so does this. The pair is formed only inside the
+/// unstaged side: a staged deletion never meets an untracked file.
+pub(crate) fn merge_worktree_renames(status: &mut WorktreeStatus, renames: &[DetectedRename]) {
+    for rename in renames {
+        let destination = status.entries.iter().position(|entry| {
+            entry.path == rename.new_path
+                && entry.index.is_none()
+                && matches!(entry.worktree, Some(ChangeKind::Untracked))
+                && !entry.submodule
+        });
+        let source = status.entries.iter().position(|entry| {
+            entry.path == rename.old_path
+                && matches!(entry.worktree, Some(ChangeKind::Deleted))
+                && !entry.conflicted
+                && !entry.submodule
+        });
+        let (Some(destination), Some(source)) = (destination, source) else {
+            continue;
+        };
+        let entry = &mut status.entries[destination];
+        entry.worktree = Some(ChangeKind::Renamed);
+        entry.old_path = Some(rename.old_path.clone());
+        entry.worktree_stats = rename.stats;
+        if status.entries[source].index.is_some() {
+            status.entries[source].worktree = None;
+        } else {
+            status.entries.remove(source);
+        }
+    }
+}
+
 pub(super) fn parse_ordinary_status(record: &[u8]) -> ApiResult<StatusEntry> {
     let fields: Vec<&[u8]> = record.splitn(9, |byte| *byte == b' ').collect();
     if fields.len() != 9 {

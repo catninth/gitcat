@@ -179,6 +179,10 @@ pub struct LineStats {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusEntry {
     pub path: String,
+    /// Where a renamed path came from. It belongs to whichever side reports
+    /// `Renamed`: the index for a staged rename, the worktree for a deletion
+    /// paired with an untracked file. Both sides cannot be renamed at once,
+    /// because a worktree rename's destination is untracked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub old_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -503,6 +507,10 @@ pub struct DiffRequest {
     pub max_bytes: usize,
     #[serde(default)]
     pub whole_file: bool,
+    /// The path a renamed file had before. Without it Git sees only the new
+    /// path and reports the whole file as added.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
