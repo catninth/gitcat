@@ -120,3 +120,37 @@ export function buildDiffMap(hunks: readonly DiffHunk[], mode: DiffViewMode): Di
 
   return { marks, totalRows: kinds.length };
 }
+
+const BYTE_ORDER_MARK = "﻿";
+
+function withoutByteOrderMark(content: string): string {
+  return content.startsWith(BYTE_ORDER_MARK) ? content.slice(1) : content;
+}
+
+/**
+ * Git reports a byte order mark that was added or removed as a changed first
+ * line, which looks identical on both sides. Like GitKraken, show that line as
+ * unchanged. Staging is unaffected: the hunk still carries the real change,
+ * and the folded line is context, so it offers no line action of its own.
+ */
+export function hideByteOrderMarkChange<T extends { hunks: DiffHunk[] }>(diff: T): T {
+  const first = diff.hunks[0];
+  if (!first) return diff;
+
+  const removed = first.lines.findIndex((line) => line.kind === "deletion" && line.old_line === 1);
+  const added = first.lines.findIndex((line) => line.kind === "addition" && line.new_line === 1);
+  if (removed < 0 || added < 0) return diff;
+
+  const before = first.lines[removed].content;
+  const after = first.lines[added].content;
+  if (before === after) return diff;
+  if (withoutByteOrderMark(before) !== withoutByteOrderMark(after)) return diff;
+
+  const lines = first.lines.flatMap((line, index): DiffLine[] => {
+    if (index === added) return [];
+    if (index !== removed) return [line];
+    return [{ kind: "context", old_line: 1, new_line: 1, content: withoutByteOrderMark(after) }];
+  });
+
+  return { ...diff, hunks: [{ ...first, lines }, ...diff.hunks.slice(1)] };
+}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildIntralineMap, segmentLine, wordDiff } from "../src/components/diff/intraline";
-import { buildDiffMap, toSplitRows } from "../src/components/diff/rows";
+import { buildDiffMap, hideByteOrderMarkChange, toSplitRows } from "../src/components/diff/rows";
 import type { DiffHunk, DiffLine } from "../src/lib/types";
 
 function del(old_line: number, content: string): DiffLine {
@@ -147,4 +147,22 @@ test("an edited line is aligned with its new version, not with whatever sits at 
   );
   const map = buildIntralineMap([{ header: "", old_start: 1, old_count: 1, new_start: 1, new_count: 3, lines } as DiffHunk]);
   assert.deepEqual(map.get(lines[3])?.map(([start, end]) => lines[3].content.slice(start, end)), [", options"]);
+});
+
+test("a byte order mark added or removed on the first line shows as unchanged", () => {
+  const hunk = {
+    header: "", old_start: 1, old_count: 3, new_start: 1, new_count: 5,
+    lines: [del(1, "﻿using Android.App;"), add(1, "using Android.App;"), ctx(2, "using Android.Runtime;"), add(3, ""), add(4, "[assembly: X]")],
+  } as DiffHunk;
+
+  const shown = hideByteOrderMarkChange({ hunks: [hunk] }).hunks[0].lines;
+  assert.deepEqual(shown[0], { kind: "context", old_line: 1, new_line: 1, content: "using Android.App;" });
+  assert.deepEqual(shown.map((line) => line.kind), ["context", "context", "addition", "addition"]);
+  assert.deepEqual(buildDiffMap([{ ...hunk, lines: shown }], "split").marks, [{ kind: "addition", start: 2, length: 2 }]);
+});
+
+test("a first line that changed beyond its byte order mark stays changed", () => {
+  const hunk = { header: "", old_start: 1, old_count: 1, new_start: 1, new_count: 1, lines: [del(1, "﻿a"), add(1, "b")] } as DiffHunk;
+  const diff = { hunks: [hunk] };
+  assert.equal(hideByteOrderMarkChange(diff), diff);
 });

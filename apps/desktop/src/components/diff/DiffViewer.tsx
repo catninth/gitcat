@@ -16,7 +16,7 @@ import { LineActionsContext, isChangedLine } from "./lineActions";
 import type { DiffLineActions } from "./lineActions";
 import { SplitPanes } from "./SplitPanes";
 import { buildIntralineMap } from "./intraline";
-import { buildDiffMap, maxLineWidth } from "./rows";
+import { buildDiffMap, hideByteOrderMarkChange, maxLineWidth } from "./rows";
 
 export interface DiffViewerProps {
   diff: FileDiff | null;
@@ -56,7 +56,7 @@ function lineMenuActions(line: DiffLine, actions: DiffLineActions | null | undef
 }
 
 export function DiffViewer({
-  diff,
+  diff: rawDiff,
   mode: controlledMode,
   defaultMode = "hunk",
   loading = false,
@@ -69,6 +69,7 @@ export function DiffViewer({
   const [internalMode, setInternalMode] = useState<DiffViewMode>(defaultMode);
   const [lineMenu, setLineMenu] = useState<LineMenu | null>(null);
   const mode = controlledMode ?? internalMode;
+  const diff = useMemo(() => (rawDiff ? hideByteOrderMarkChange(rawDiff) : null), [rawDiff]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const diffMap = useMemo(
     () => buildDiffMap(diff?.hunks ?? [], mode),
